@@ -1,0 +1,56 @@
+name: Feature request
+description: Propose a focused improvement to Jev Java
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem first. Do not include credentials or real customer state.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult or impossible today, and who encounters it?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the API or behavior you would like, with a small sanitized example when useful.
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Primary scope
+      options:
+        - Core API
+        - TypeSafe provider
+        - Vercel provider
+        - JDK transport
+        - WebClient or Reactor
+        - Spring Boot
+        - Documentation or examples
+        - Build or release
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Note current workarounds or smaller alternatives.
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility considerations
+      description: Note effects on Java 17, Spring Boot, provider protocols, transports, or public API.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: I removed credentials and real customer state.
+          required: true

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>io.github.gudcks0305</groupId>
+  <artifactId>jev-java</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <name>Jev Java</name>
+  <description>Unofficial typed Java SDK for TypeSafe Jev and Vercel AI Gateway</description>
+  <url>https://github.com/gudcks0305/jev-java</url>
+  <licenses><license><name>MIT License</name><url>https://opensource.org/license/mit</url></license></licenses>
+  <developers><developer><id>gudcks0305</id><name>gudcks0305</name></developer></developers>
+  <scm><connection>scm:git:https://github.com/gudcks0305/jev-java.git</connection><developerConnection>scm:git:ssh://git@github.com/gudcks0305/jev-java.git</developerConnection><url>https://github.com/gudcks0305/jev-java</url></scm>
+  <modules>
+    <module>jev-core</module><module>jev-typesafe</module><module>jev-vercel</module>
+    <module>jev-spring-webflux</module><module>jev-spring-boot-autoconfigure</module><module>jev-spring-boot-starter</module><module>examples</module>
+  </modules>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring-boot.version>3.5.16</spring-boot.version>
+    <jackson.version>2.21.4</jackson.version>
+    <junit.version>5.12.2</junit.version>
+  </properties>
+  <dependencyManagement><dependencies>
+    <dependency><groupId>com.fasterxml.jackson</groupId><artifactId>jackson-bom</artifactId><version>${jackson.version}</version><type>pom</type><scope>import</scope></dependency>
+    <dependency><groupId>org.junit</groupId><artifactId>junit-bom</artifactId><version>${junit.version}</version><type>pom</type><scope>import</scope></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-dependencies</artifactId><version>${spring-boot.version}</version><type>pom</type><scope>import</scope></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-core</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-typesafe</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-vercel</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-webflux</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-boot-autoconfigure</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-boot-starter</artifactId><version>${project.version}</version></dependency>
+  </dependencies></dependencyManagement>
+  <build><plugins>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.16.0</version></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.6</version><configuration><useModulePath>false</useModulePath></configuration></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId><version>3.3.1</version><executions><execution><id>sources</id><goals><goal>jar-no-fork</goal></goals></execution></executions></plugin>
+  </plugins></build>
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build><plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId><artifactId>maven-javadoc-plugin</artifactId><version>3.12.0</version>
+          <configuration><doclint>all,-missing</doclint></configuration>
+          <executions><execution><id>javadoc</id><goals><goal>jar</goal></goals></execution></executions>
+        </plugin>
+      </plugins></build>
+    </profile>
+  </profiles>
+</project>

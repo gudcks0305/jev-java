@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and usage discussions
+    url: https://github.com/gudcks0305/jev-java/discussions
+    about: Ask usage questions and discuss ideas before filing an issue.
+  - name: Private security report
+    url: https://github.com/gudcks0305/jev-java/security/advisories/new
+    about: Report vulnerabilities privately without credentials or customer data.

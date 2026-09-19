@@ -1,0 +1,75 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Jev Java
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Remove API keys, authorization headers, and real customer state before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Jev Java version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - jev-core
+        - jev-typesafe
+        - jev-vercel
+        - jev-spring-webflux
+        - jev-spring-boot-autoconfigure
+        - jev-spring-boot-starter
+        - examples or documentation
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Include Java and Spring Boot versions when applicable.
+      placeholder: Java 21, Spring Boot 3.5.16
+    validations:
+      required: true
+  - type: input
+    id: provider_transport
+    attributes:
+      label: Provider and transport
+      placeholder: TypeSafe with JDK, or Vercel with WebClient
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal sanitized reproduction
+      description: Provide the smallest code or repository that reproduces the problem. Use fake state and fake credentials only.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include sanitized errors or logs if useful. Do not include request or response bodies containing real data.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: I removed credentials, authorization headers, and real customer state.
+          required: true
+        - label: This is not an undisclosed security vulnerability.
+          required: true
