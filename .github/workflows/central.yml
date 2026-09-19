@@ -1,0 +1,57 @@
+name: Maven Central
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Verify packaging only, or upload a signed deployment for manual Portal publication
+        type: choice
+        options: [verify, upload]
+        default: verify
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: maven-central
+  cancel-in-progress: false
+jobs:
+  central:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check upload credentials
+        if: inputs.operation == 'upload'
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          for name in CENTRAL_TOKEN_USERNAME CENTRAL_TOKEN_PASSWORD GPG_PRIVATE_KEY GPG_PASSPHRASE; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing Actions secret: $name"
+              exit 1
+            fi
+          done
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Verify Central packaging without uploading
+        if: inputs.operation == 'verify'
+        run: ./mvnw -B -ntp clean verify -Prelease,central -pl '!examples' -Dgpg.skip=true
+      - name: Import signing key
+        if: inputs.operation == 'upload'
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+      - name: Sign and upload for Portal validation
+        if: inputs.operation == 'upload'
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: ./mvnw -B -ntp clean deploy -Prelease,central -pl '!examples'

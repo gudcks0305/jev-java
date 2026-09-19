@@ -12,6 +12,9 @@ Unofficial Java SDK for **TypeSafe Jev** and **Vercel AI Gateway**, with typed d
 
 **Status:** `0.1.0`, source-first; not published to Maven Central. Vercel support uses an experimental AI SDK protocol, not a stable public Java REST contract. See [protocol notes](docs/protocols.md).
 
+Maintainers: the manual [Maven Central workflow](docs/central-publishing.md) supports
+packaging verification and signed uploads for manual Portal publication.
+
 ## Build and install locally
 
 ```sh
