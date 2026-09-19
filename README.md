@@ -1,25 +1,17 @@
 # Jev Java
 
 [![CI](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml/badge.svg)](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.gudcks0305/jev-typesafe)](https://central.sonatype.com/artifact/io.github.gudcks0305/jev-typesafe)
 
 Unofficial Java SDK for turning application state into typed Jev judgments through the TypeSafe API or Vercel AI Gateway. Define `Choice`, `Noul`, and `Score` questions in Java, submit them together, and receive typed results instead of parsing generated text.
 
 Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI or Vercel.
 
-> **Release status:** Maven Central publication of `0.1.0` is pending. Until publication is confirmed, install the source locally as shown below.
+**Version 0.1.0 is available on Maven Central.** Add a dependency to get started; no local source installation or custom Maven repository is required.
 
 ## Installation
 
-Clone and install all modules into your local Maven repository:
-
-```sh
-git clone https://github.com/gudcks0305/jev-java.git
-cd jev-java
-./mvnw verify
-./mvnw install
-```
-
-Then add the module that matches your application:
+Choose the module that matches your application:
 
 | Artifact | Use it for |
 | --- | --- |
@@ -39,6 +31,16 @@ For direct TypeSafe access:
 ```
 
 Use `jev-vercel` instead for AI Gateway. Both provider modules bring in `jev-core`; do not add it separately.
+
+Gradle Kotlin DSL:
+
+```kotlin
+repositories { mavenCentral() }
+
+dependencies {
+    implementation("io.github.gudcks0305:jev-typesafe:0.1.0")
+}
+```
 
 ## Quick start
 
@@ -177,6 +179,8 @@ final class RoutingService {
 
 Each subscription starts one request, and cancellation reaches the underlying future, HTTP request, and pending retry delay. The SDK does not call `.block()`.
 
+For a command-line or other non-web Boot application, set `spring.main.web-application-type=none` when adding WebFlux.
+
 To retain application filters, observability, connector, and connection-pool settings, expose the `WebClient` you want Jev to use. Mark it primary when multiple clients exist:
 
 ```java
@@ -259,9 +263,17 @@ The SDK preserves missing probabilities, confidence, and token counts as missing
 
 TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
-The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. Optional live examples can make billable requests:
+The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The five Java examples in this README were also compiled with `--release 17`.
+
+## Build and run examples from source
+
+The source build runs offline tests and installs the modules locally. The optional live example requires your provider environment key and can make billable requests:
 
 ```sh
+git clone https://github.com/gudcks0305/jev-java.git
+cd jev-java
+./mvnw install
+
 ./mvnw -q -pl examples exec:java \
   -Dexec.mainClass=io.github.gudcks0305.jev.examples.Quickstart \
   -Dexec.args=typesafe
