@@ -68,10 +68,12 @@ jobs:
       - name: Record artifact signature metadata
         if: always() && inputs.operation == 'upload'
         run: |
-          signature=jev-core/target/jev-core-0.1.0.jar.asc
-          if test -f "$signature"; then
-            gpg --batch --list-packets "$signature"
-          fi
+          for signature in jev-core/target/jev-core-*.jar.asc; do
+            if test -f "$signature"; then
+              gpg --batch --list-packets "$signature"
+              break
+            fi
+          done
       - name: Retain public deployment bundle for validation diagnosis
         if: always() && inputs.operation == 'upload'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
