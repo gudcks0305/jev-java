@@ -2,20 +2,15 @@
 
 [![CI](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml/badge.svg)](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml)
 
-Unofficial Java SDK for **TypeSafe Jev** and **Vercel AI Gateway**, with typed decisions, a Spring Boot starter, and optional Spring WebClient/Reactor support. Not affiliated with TypeSafe AI or Vercel.
+Unofficial Java SDK for turning application state into typed Jev judgments through the TypeSafe API or Vercel AI Gateway. Define `Choice`, `Noul`, and `Score` questions in Java, submit them together, and receive typed results instead of parsing generated text.
 
-- Java 17+. JDK `HttpClient` by default; no Spring dependency in the core SDK.
-- Choice → enum/string + probabilities; Noul → yes probability; Score → weighted level index.
-- Shared synchronous and `CompletableFuture` APIs across both providers.
-- Actual WebClient transport, user-supplied clients/filters, and lazy `Mono<Evaluation>`.
-- Bounded retries, total deadline, cancellation, immutable question/result data.
+Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI or Vercel.
 
-**Status:** `0.1.0`, source-first; not published to Maven Central. Vercel support uses an experimental AI SDK protocol, not a stable public Java REST contract. See [protocol notes](docs/protocols.md).
+> **Release status:** Maven Central publication of `0.1.0` is pending. Until publication is confirmed, install the source locally as shown below.
 
-Maintainers: the manual [Maven Central workflow](docs/central-publishing.md) supports
-packaging verification and signed uploads for manual Portal publication.
+## Installation
 
-## Build and install locally
+Clone and install all modules into your local Maven repository:
 
 ```sh
 git clone https://github.com/gudcks0305/jev-java.git
@@ -24,53 +19,100 @@ cd jev-java
 ./mvnw install
 ```
 
-Tests use local servers/fakes and need no API keys. Live examples make billable requests and are opt-in.
+Then add the module that matches your application:
 
-## Plain Java
+| Artifact | Use it for |
+| --- | --- |
+| `jev-typesafe` | Plain Java client for TypeSafe's public Jev API |
+| `jev-vercel` | Plain Java adapter for Vercel AI Gateway's experimental evaluation protocol |
+| `jev-spring-boot-starter` | Spring Boot auto-configuration with the default JDK transport |
+| `jev-spring-webflux` | Optional WebClient transport and lazy Reactor facade |
 
-After installing locally, add the provider you need:
+For direct TypeSafe access:
 
 ```xml
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
-  <artifactId>jev-typesafe</artifactId> <!-- or jev-vercel -->
+  <artifactId>jev-typesafe</artifactId>
   <version>0.1.0</version>
 </dependency>
 ```
 
+Use `jev-vercel` instead for AI Gateway. Both provider modules bring in `jev-core`; do not add it separately.
+
+## Quick start
+
+Set the key for your provider:
+
+```sh
+export TYPESAFE_API_KEY=...
+# or: export AI_GATEWAY_API_KEY=...
+```
+
+One `evaluate` call can batch different typed questions:
+
 ```java
-import io.github.gudcks0305.jev.*;
+import io.github.gudcks0305.jev.ChoiceQuestion;
+import io.github.gudcks0305.jev.JevClient;
+import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.ScoreQuestion;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
+import java.util.List;
 
-enum Department { BILLING, TECHNICAL, SALES }
+public final class Quickstart {
+    enum Department { BILLING, TECHNICAL, SALES }
 
-var route = ChoiceQuestion.of("route", "Which department should handle this?", Department.class);
-var urgent = NoulQuestion.of("urgent", "Is this time-sensitive?");
+    public static void main(String[] args) {
+        var route = ChoiceQuestion.of(
+                "route", "Which department should handle this?", Department.class);
+        var urgent = NoulQuestion.of(
+                "urgent", "Does this require an urgent response?");
+        var severity = ScoreQuestion.of(
+                "severity", "How severe is the problem?",
+                List.of("No problem", "Minor problem", "Major problem"));
 
-try (JevClient client = TypeSafeJevClient.builder().build()) { // TYPESAFE_API_KEY
-    var result = client.evaluate("I was charged twice. Please refund me.", route, urgent);
-    Department department = result.answer(route).choice();
-    double probability = result.answer(urgent).probability();
-    boolean escalate = result.answer(urgent).atLeast(0.9); // application-owned threshold
+        try (JevClient client = TypeSafeJevClient.builder().build()) {
+            var result = client.evaluate(
+                    "I was charged twice and need a refund today.",
+                    route, urgent, severity);
+
+            Department department = result.answer(route).choice();
+            double urgentProbability = result.answer(urgent).probability();
+            boolean escalate = result.answer(urgent).atLeast(0.90);
+            double severityIndex = result.answer(severity).score();
+
+            System.out.printf("%s urgent=%.2f escalate=%s severity=%.2f%n",
+                    department, urgentProbability, escalate, severityIndex);
+        }
+    }
 }
 ```
 
-For Vercel, replace construction with `VercelJevClient.builder().build()` (package `io.github.gudcks0305.jev.vercel`), using `AI_GATEWAY_API_KEY`. Default models: `jev-latest` and `typesafe-ai/jev`. Override with `.model("...")`; pin a direct TypeSafe version when repeatability matters.
+`NoulAnswer.probability()` is the probability of `true`; the application owns its threshold. A `Score` is a weighted zero-based level index, so three levels span 0–2. `ChoiceAnswer.probabilities()`, `ScoreAnswer.probabilities()`, and their `confidence()` values preserve provider data; a missing distribution or confidence remains absent rather than being invented.
 
-`evaluateAsync(state, questions...)` returns a cancellable `CompletableFuture<Evaluation>`. Reuse clients; close them when the application stops. Blocking `evaluate()` is for blocking callers, never a reactive event loop.
-
-String choices can carry descriptions, including structured JSON:
+String choices can include plain or structured descriptions:
 
 ```java
-var route = ChoiceQuestion.of("route", "Choose a team",
-    Map.of("billing", "Payments and refunds", "technical", "Bugs and outages"));
-var score = ScoreQuestion.of("severity", "How severe is this?",
-    List.of("No problem", "Minor problem", "Major problem"));
+import io.github.gudcks0305.jev.ChoiceQuestion;
+import java.util.Map;
+
+final class StringChoiceExample {
+    static final ChoiceQuestion<String> ROUTE = ChoiceQuestion.of(
+            "route", "Choose a team", Map.of(
+                    "billing", "Payments and refunds",
+                    "technical", Map.of("handles", "Bugs and outages")));
+}
 ```
 
-State and instructions accept strings, maps, lists, Jackson `JsonNode`, or serializable POJOs/records. Enum wire labels use `Enum.name()`. Use `.withDescriptions(Map.of(...))` to describe enum choices. Keep the returned question instance: `result.answer(question)` checks identity as well as the generic result type.
+Enum labels use `Enum.name()`. Add enum descriptions with `withDescriptions(Map.of(...))`. Keep the exact question instance passed to `evaluate`; `result.answer(question)` checks its identity to preserve the generic answer type.
 
-## Spring Boot starter
+`evaluateAsync(state, questions...)` returns a cancellable `CompletableFuture<Evaluation>`. Reuse clients and close them when the application stops. Use blocking `evaluate()` only from blocking code.
+
+To use Vercel, construct `VercelJevClient.builder().build()` from `io.github.gudcks0305.jev.vercel`. Default models are `jev-latest` for direct TypeSafe and `typesafe-ai/jev` for Vercel; override either with `.model("...")`.
+
+## Spring Boot
+
+The starter includes both provider adapters and defaults to TypeSafe over JDK `HttpClient`:
 
 ```xml
 <dependency>
@@ -88,24 +130,11 @@ jev:
   max-retries: 2
 ```
 
-Inject `JevClient` into your service. The starter reads the selected provider's environment key when `jev.api-key` is unset. It makes no network calls during initialization. A user-defined `JevClient` bean takes precedence; `jev.enabled=false` disables auto-configuration.
+Inject `JevClient` into blocking services. The starter reads `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` when `jev.api-key` is absent, performs no network call during startup, backs off when the application defines its own `JevClient`, and can be disabled with `jev.enabled=false`.
 
-| Property | Default | Meaning |
-| --- | --- | --- |
-| `jev.enabled` | `true` | Enable auto-configuration |
-| `jev.provider` | `typesafe` | `typesafe` or `vercel` |
-| `jev.transport` | `jdk` | `jdk` or `webclient` |
-| `jev.api-key` | provider environment variable | Explicit key override |
-| `jev.model` | provider default | Model ID |
-| `jev.base-url` | provider origin | Custom HTTP(S) origin/path prefix, without the endpoint suffix |
-| `jev.timeout` | `30s` | Total HTTP deadline across retries, positive and at most one day |
-| `jev.max-retries` | `2` | Retries after initial attempt, 0–10 |
+### WebClient and Reactor
 
-Environment variables exported in `.zshrc` are inherited only by processes started from that shell; IDEs/containers need their own environment configuration. Do not commit keys to configuration files.
-
-## WebClient and Reactor
-
-Add `jev-spring-webflux` alongside the starter. The base starter deliberately does not pull in WebFlux.
+The base starter does not pull in WebFlux. Add the optional module and select its transport:
 
 ```xml
 <dependency>
@@ -121,73 +150,129 @@ jev:
   transport: webclient
 ```
 
-Inject `ReactorJevClient` (package `io.github.gudcks0305.jev.webflux`):
+The starter now exposes a lazy `ReactorJevClient`:
 
 ```java
-public Mono<Department> route(String message) {
-    var question = ChoiceQuestion.of("route", "Which department?", Department.class);
-    return jev.evaluate(message, question)
-        .map(result -> result.answer(question).choice());
+import io.github.gudcks0305.jev.ChoiceQuestion;
+import io.github.gudcks0305.jev.webflux.ReactorJevClient;
+import reactor.core.publisher.Mono;
+
+final class RoutingService {
+    enum Department { BILLING, TECHNICAL, SALES }
+
+    private final ReactorJevClient jev;
+
+    RoutingService(ReactorJevClient jev) {
+        this.jev = jev;
+    }
+
+    Mono<Department> route(String message) {
+        var question = ChoiceQuestion.of(
+                "route", "Which department should handle this?", Department.class);
+        return jev.evaluate(message, question)
+                .map(result -> result.answer(question).choice());
+    }
 }
 ```
 
-Each subscription starts a new call. Cancellation reaches the HTTP request and pending retries; the SDK never calls `.block()`. A unique/primary user `WebClient` is preferred, then a unique/primary `WebClient.Builder`, then a default builder. Declare a primary bean if several clients exist. Your connector, filters, observability and pool configuration stay in use. Caller-supplied WebClient/connector resources are not shut down by the SDK.
+Each subscription starts one request, and cancellation reaches the underlying future, HTTP request, and pending retry delay. The SDK does not call `.block()`.
 
-Outside Boot:
+To retain application filters, observability, connector, and connection-pool settings, expose the `WebClient` you want Jev to use. Mark it primary when multiple clients exist:
 
 ```java
-var transport = new WebClientJevTransport(webClient, Duration.ofSeconds(30), 2);
-var client = TypeSafeJevClient.builder().transport(transport).build();
-var reactive = new ReactorJevClient(client);
-// Subscribe to reactive.evaluate(state, questions...).
-// At shutdown: client.close(); transport.close(); then close resources you own.
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.web.reactive.function.client.WebClient;
+
+@Configuration
+class JevWebClientConfiguration {
+    @Bean
+    @Primary
+    WebClient jevWebClient(WebClient.Builder builder) {
+        return builder.build();
+    }
+}
 ```
 
-An injected transport owns its timeout/retry policy; builder `.timeout()` / `.maxRetries()` configure only the default JDK transport. For Boot-managed WebClient transport, `jev.*` settings configure the transport bean. `ReactorJevClient` itself does not own the delegate.
+Auto-configuration chooses a unique/primary `WebClient`, then a unique/primary `WebClient.Builder`, then a default builder. The SDK does not shut down caller-supplied WebClient connector resources.
 
-## Errors and result semantics
+Outside Spring Boot, wire the transport explicitly:
 
-`JevException.kind()` distinguishes authentication, validation, rate limiting, server/HTTP, connection, timeout, protocol, and closed-client failures. `statusCode()` is the HTTP status or 0 when unavailable. Invalid local arguments fail before transport. Default errors exclude request/response bodies and credentials; inspect the provider dashboard for account-specific diagnostics.
+```java
+import io.github.gudcks0305.jev.JevClient;
+import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
+import io.github.gudcks0305.jev.webflux.ReactorJevClient;
+import io.github.gudcks0305.jev.webflux.WebClientJevTransport;
+import java.time.Duration;
+import org.springframework.web.reactive.function.client.WebClient;
 
-Only explicit **429, 529, 502, 503, 504** responses retry, respecting `Retry-After` within the total deadline. Connection failures and ambiguous timeouts do not automatically retry, because the service may already have processed/billed the call. No automatic fallback between providers.
+public final class JevClients implements AutoCloseable {
+    private final WebClientJevTransport transport;
+    private final JevClient client;
+    private final ReactorJevClient reactive;
 
-- Noul is a yes probability, not a separate confidence score.
-- Score is a weighted **zero-based level index**; three levels span 0–2, not 0–1.
-- Choice/Score confidence remains optional. It is not fabricated when missing.
-- Vercel may omit probabilities/usage: empty distributions and optional counts preserve that absence.
-- Displayed probabilities may be rounded; the SDK preserves them without renormalization.
-- Full returned metadata, warnings and rounding information are available in `rawResponse()`.
-- Typed output does not guarantee a correct judgment. Evaluate application thresholds against your own labeled data.
+    public JevClients() {
+        WebClient webClient = WebClient.builder().build();
+        transport = new WebClientJevTransport(
+                webClient, Duration.ofSeconds(30), 2);
+        client = TypeSafeJevClient.builder().transport(transport).build();
+        reactive = new ReactorJevClient(client);
+    }
 
-## Live examples
+    public ReactorJevClient reactive() {
+        return reactive;
+    }
 
-Export `TYPESAFE_API_KEY` and/or `AI_GATEWAY_API_KEY` in your shell, then:
+    @Override
+    public void close() {
+        client.close();
+        transport.close();
+    }
+}
+```
+
+`ReactorJevClient` does not own its delegate. Close `client` and `transport` during shutdown, then close any connector resources your application owns. When a transport is injected, it owns timeout/retry policy; builder `.timeout()` and `.maxRetries()` apply only to the default JDK transport.
+
+### Configuration
+
+| Property | Default | Meaning |
+| --- | --- | --- |
+| `jev.enabled` | `true` | Enable auto-configuration |
+| `jev.provider` | `typesafe` | `typesafe` or `vercel` |
+| `jev.transport` | `jdk` | `jdk` or `webclient` |
+| `jev.api-key` | provider environment variable | Explicit key override |
+| `jev.model` | provider default | Model ID |
+| `jev.base-url` | provider origin | Custom origin/path prefix, without the endpoint suffix |
+| `jev.timeout` | `30s` | Total deadline across attempts and retry delays |
+| `jev.max-retries` | `2` | Retries after the first attempt, from 0 to 10 |
+
+## Errors and response semantics
+
+`JevException.kind()` separates authentication, validation, rate limiting, server/HTTP, connection, timeout, protocol, and closed-client failures. `statusCode()` is the HTTP status, or 0 when none is available. Error messages exclude response bodies and credentials by default.
+
+Only explicit **429, 529, 502, 503, and 504** responses retry. Connection failures and ambiguous timeouts do not automatically retry because the service may already have processed and billed the request. There is no automatic provider fallback.
+
+The SDK preserves missing probabilities, confidence, and token counts as missing. It does not normalize scores or probability distributions. Provider metadata, warnings, and rounding information remain available through `Evaluation.rawResponse()`. Typed output prevents schema mismatch; it does not guarantee a correct judgment. Validate thresholds against your own labeled data.
+
+## Provider status and validation
+
+TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
+
+The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. Optional live examples can make billable requests:
 
 ```sh
 ./mvnw -q -pl examples exec:java \
   -Dexec.mainClass=io.github.gudcks0305.jev.examples.Quickstart \
   -Dexec.args=typesafe
-
-./mvnw -q -pl examples exec:java \
-  -Dexec.mainClass=io.github.gudcks0305.jev.examples.WebClientExample \
-  -Dexec.args=typesafe
-
-./mvnw -q -pl examples exec:java \
-  -Dexec.mainClass=io.github.gudcks0305.jev.examples.SpringBootExample \
-  '-Dexec.args=--jev.provider=typesafe --jev.transport=webclient'
 ```
 
-Use `vercel` to exercise Gateway. Your Vercel account must be allowed to use AI Gateway; `403 customer_verification_required` means the account requires verification, not a retryable SDK error.
+Use `WebClientExample` or `SpringBootExample` for those integration paths. Passing `vercel` selects Gateway; a `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
 
-## Modules
+## Project links
 
-| Artifact | Purpose |
-| --- | --- |
-| `jev-core` | Typed questions/results, client SPI, JDK HTTP transport |
-| `jev-typesafe` | TypeSafe public API adapter |
-| `jev-vercel` | Experimental Vercel evaluation adapter |
-| `jev-spring-webflux` | WebClient transport + Reactor facade |
-| `jev-spring-boot-autoconfigure` | Optional Spring auto-configuration |
-| `jev-spring-boot-starter` | Dependency starter, no WebFlux dependency |
-
-CI tests Java 17/21/25 with Spring Boot 3.5.16 and 4.1.1. See [validation notes](docs/validation.md) for local/live evidence and limitations. Licensed under [MIT](LICENSE).
+- [Contributing](CONTRIBUTING.md)
+- [Provider protocols](docs/protocols.md)
+- [Validation notes](docs/validation.md)
+- [MIT License](LICENSE)
+- [Maven Central publishing guide](docs/central-publishing.md) for maintainers

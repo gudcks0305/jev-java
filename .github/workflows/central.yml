@@ -48,6 +48,16 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
+      - name: Check public signing key availability
+        if: inputs.operation == 'upload'
+        run: |
+          fingerprint=$(gpg --batch --with-colons --fingerprint | awk -F: '$1 == "fpr" { print $10; exit }')
+          [[ "$fingerprint" =~ ^[A-F0-9]{40}$ ]]
+          echo "Signing key fingerprint: $fingerprint"
+          curl --fail --silent --show-error --retry 2 \
+            "https://keys.openpgp.org/vks/v1/by-fingerprint/$fingerprint" \
+            --output "$RUNNER_TEMP/jev-public-key.asc"
+          gpg --batch --list-packets "$RUNNER_TEMP/jev-public-key.asc"
       - name: Sign and upload for Portal validation
         if: inputs.operation == 'upload'
         env:
@@ -55,3 +65,20 @@ jobs:
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: ./mvnw -B -ntp clean deploy -Prelease,central -pl '!examples'
+      - name: Record artifact signature metadata
+        if: always() && inputs.operation == 'upload'
+        run: |
+          for signature in jev-core/target/jev-core-*.jar.asc; do
+            if test -f "$signature"; then
+              gpg --batch --list-packets "$signature"
+              break
+            fi
+          done
+      - name: Retain public deployment bundle for validation diagnosis
+        if: always() && inputs.operation == 'upload'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: central-deployment-bundle
+          path: target/central-publishing/central-bundle.zip
+          if-no-files-found: ignore
+          retention-days: 7

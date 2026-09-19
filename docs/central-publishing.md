@@ -17,6 +17,9 @@ Configure these repository Actions secrets:
 
 The Portal account must have verified access to `io.github.gudcks0305`. Publish
 the corresponding GPG public key as described in the [Sonatype signing guide](https://central.sonatype.org/publish/requirements/gpg/).
+The upload workflow checks that the public key is retrievable by fingerprint
+from `keys.openpgp.org` before deployment. Its public bundle is retained as an
+Actions artifact for seven days so validation failures can be investigated.
 Do not put any credential values in the workflow, POM, repository, or logs.
 
 `actions/setup-java` writes Maven settings that reference the token environment
