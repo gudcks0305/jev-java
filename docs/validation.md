@@ -38,3 +38,21 @@ shasum -a 256 -c SHA256SUMS
 ```
 
 Javadoc and sources are built with the binaries. The dependency-only starter contains no Java API documentation. GitHub release publication runs the release build again from the pushed tag.
+
+## Maven Central 0.1.0
+
+Central deployment `3bea6bf0-b85f-4771-a1e3-f1f61af9681b` reached `PUBLISHED`.
+The parent POM and all six SDK modules are published under `io.github.gudcks0305`.
+The Central build uses explanatory sources/Javadoc placeholders for the dependency-only starter.
+
+- [Signed upload and validation workflow](https://github.com/gudcks0305/jev-java/actions/runs/35454546753)
+- 25 signatures verified; public-key fingerprint `0E33C3E5CAE942F0B98F4C34E4C08305A1115D16`.
+- Public key available from [keys.openpgp.org](https://keys.openpgp.org/vks/v1/by-fingerprint/0E33C3E5CAE942F0B98F4C34E4C08305A1115D16).
+- README's five standalone Java examples compile with release 17.
+- A separate consumer project, empty Maven cache and clean settings resolved
+  the published starter/WebFlux dependencies (all six SDK JARs and seven POMs)
+  from Central and compiled with release 17. No local SDK installation was used.
+
+The initial two uploads failed Central's public-key lookup. After registering the
+public key on keys.openpgp.org and allowing time for lookup availability, the
+subsequent deployment validated. A specific Central cache policy was not established.
