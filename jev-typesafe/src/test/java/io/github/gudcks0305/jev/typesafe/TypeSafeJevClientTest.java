@@ -73,6 +73,43 @@ class TypeSafeJevClientTest {
         }
     }
 
+    @Test void fullEndpointPreservesPathAndQueryAndKeepsTypeSafeContract() throws Exception {
+        Stub stub = new Stub(response());
+        URI endpoint = URI.create("https://proxy.example/custom/evaluate/?api-version=1&tenant=a%2Fb");
+        try (var client = TypeSafeJevClient.builder().apiKey("test-key").endpoint(endpoint).transport(stub).build()) {
+            client.evaluate("state", route, urgent, score);
+            assertEquals(endpoint, stub.uri);
+            assertEquals("noul", stub.body.at("/questions/urgent/type").asText());
+            assertEquals("jev-latest", stub.body.path("model").asText());
+        }
+    }
+
+    @Test void baseUrlStillAppendsOriginalTypeSafePath() throws Exception {
+        Stub stub = new Stub(response());
+        try (var client = TypeSafeJevClient.builder().apiKey("test-key")
+                .baseUrl(URI.create("https://proxy.example/prefix/")).transport(stub).build()) {
+            client.evaluate("state", route, urgent, score);
+            assertEquals(URI.create("https://proxy.example/prefix/v1/systemone"), stub.uri);
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"/relative", "file:///tmp/request", "https://user:password@example.com/api", "https://example.com/api#fragment", "https:///api"})
+    void rejectsInvalidFullEndpoint(String value) {
+        assertThrows(IllegalArgumentException.class, () -> TypeSafeJevClient.builder()
+                .apiKey("test-key").endpoint(URI.create(value)).build());
+    }
+
+    @Test void rejectsConflictingUrlOptionsRegardlessOfOrder() {
+        URI base = URI.create("https://proxy.example");
+        URI endpoint = URI.create("https://proxy.example/custom");
+        assertThrows(IllegalArgumentException.class, () -> TypeSafeJevClient.builder()
+                .apiKey("test-key").baseUrl(base).endpoint(endpoint).build());
+        assertThrows(IllegalArgumentException.class, () -> TypeSafeJevClient.builder()
+                .apiKey("test-key").endpoint(endpoint).baseUrl(base).build());
+        assertThrows(IllegalArgumentException.class, () -> TypeSafeJevClient.builder()
+                .apiKey("test-key").baseUrl(URI.create("https://proxy.example?query=not-allowed")).build());
+    }
+
     @ParameterizedTest @ValueSource(strings = {"missing", "type", "unknown-choice", "missing-probability", "negative", "numeric-string", "score-range", "extra-answer", "usage"})
     void rejectsMalformedSuccessfulResponses(String defect) throws Exception {
         ObjectNode body = (ObjectNode) response();

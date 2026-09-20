@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 — 2026-09-20
+
+- OpenRouter alpha Decisions adapter (`jev-openrouter`, `OpenRouterJevClient`).
+- Full `.endpoint(URI)` override on every provider, preserving custom paths and query strings.
+- Spring `jev.provider=openrouter` and `jev.endpoint`, including WebClient transport.
+- Provider-specific optional probability handling and OpenRouter criteria validation.
+- Existing `baseUrl` behavior remains unchanged; setting both URL options fails fast.
+
+OpenRouter live inference is unverified without an API key; official-schema and local HTTP contract tests cover the adapter.
+
 ## 0.1.0 — 2026-09-20
 
 - Typed Choice, Noul and Score questions, including enum choices and batched evaluation.

@@ -19,7 +19,8 @@ public class JevProperties {
 
     /**
      * Provider API key. When omitted, the provider builder reads {@code TYPESAFE_API_KEY}
-     * or {@code AI_GATEWAY_API_KEY}.
+     * for TypeSafe, {@code AI_GATEWAY_API_KEY} for Vercel, or
+     * {@code OPENROUTER_API_KEY} for OpenRouter.
      */
     private String apiKey;
 
@@ -28,6 +29,12 @@ public class JevProperties {
 
     /** Provider base URL. When omitted, the selected provider's default is used. */
     private URI baseUrl;
+
+    /**
+     * Full provider endpoint URL. Preserves its path and query exactly and is mutually
+     * exclusive with {@code base-url}.
+     */
+    private URI endpoint;
 
     /** Total call deadline including retries. Must be positive and at most one day. */
     private Duration timeout = Duration.ofSeconds(30);
@@ -89,6 +96,14 @@ public class JevProperties {
         this.baseUrl = baseUrl;
     }
 
+    public URI getEndpoint() {
+        return this.endpoint;
+    }
+
+    public void setEndpoint(URI endpoint) {
+        this.endpoint = endpoint;
+    }
+
     public Duration getTimeout() {
         return this.timeout;
     }
@@ -113,7 +128,8 @@ public class JevProperties {
 
     public enum Provider {
         TYPESAFE,
-        VERCEL
+        VERCEL,
+        OPENROUTER
     }
 
     public enum Transport {

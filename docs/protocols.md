@@ -40,4 +40,25 @@ Reference implementation pinned to Vercel AI commit `20dd00abba618d5a516e0fee40c
 
 No score normalization, confidence inference, or probability renormalization occurs. Two-decimal display rounding can make probability sums differ slightly from one. Missing/extra answers, mismatched types, unknown labels, invalid level indices, nonnumeric or out-of-range probabilities are protocol failures. Unknown metadata is preserved in the raw response.
 
-`baseUrl` is an origin with an optional path prefix. The adapter appends its full endpoint suffix (`v1/systemone` or `v4/ai/evaluation-model`). Do not include that suffix twice. Use HTTPS for real API keys; HTTP exists for local servers/proxies.
+## OpenRouter (since 0.1.1)
+
+- `POST https://openrouter.ai/api/alpha/decisions`
+- `Authorization: Bearer <OPENROUTER_API_KEY>`
+- Default model: `typesafe/jev-1.13`; body includes `model`, `state`, `questions`.
+- Native `noul`, `choice`, and `score` answers; snake_case `input_tokens` / `output_tokens`.
+- Choice/Score probabilities and confidence are optional. Score legend, model,
+  usage, response id and provider are optional. Metadata including `usage.cost`
+  is preserved in the raw response without fabricating missing values.
+- Criteria descriptions are string/object/array values; choice also permits
+  null. Score levels cannot be null. Noul criteria need both sides; two null
+  descriptions are encoded as omitted criteria, as in the official provider.
+
+Sources: [official Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request),
+[official schema at 1b22b05](https://github.com/OpenRouterTeam/ai-sdk-provider/blob/1b22b05352cb0f9243a6c3fdd326038dd3705544/src/evaluation/schemas.ts),
+[official mapping](https://github.com/OpenRouterTeam/ai-sdk-provider/blob/1b22b05352cb0f9243a6c3fdd326038dd3705544/src/evaluation/index.ts).
+This is an alpha API. OpenRouter live inference has not been tested in this
+development account; protocol tests use a local HTTP server and fixtures.
+
+## URL configuration
+
+`baseUrl` is an origin with an optional path prefix. The adapter appends its full endpoint suffix (`v1/systemone`, `v4/ai/evaluation-model`, or `api/alpha/decisions`). Do not include that suffix twice. Since 0.1.1, `endpoint(URI)` / Spring `jev.endpoint` accepts the complete URL and preserves its path/query without appending anything. The two options are mutually exclusive. The selected client still determines authentication and wire format. User-info and fragments are rejected; `baseUrl` also rejects queries. Use HTTPS for real API keys; HTTP exists for local servers/proxies.

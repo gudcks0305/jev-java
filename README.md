@@ -3,11 +3,11 @@
 [![CI](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml/badge.svg)](https://github.com/gudcks0305/jev-java/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.gudcks0305/jev-typesafe)](https://central.sonatype.com/artifact/io.github.gudcks0305/jev-typesafe)
 
-Unofficial Java SDK for turning application state into typed Jev judgments through the TypeSafe API or Vercel AI Gateway. Define `Choice`, `Noul`, and `Score` questions in Java, submit them together, and receive typed results instead of parsing generated text.
+Unofficial Java SDK for turning application state into typed Jev judgments through TypeSafe, OpenRouter, or Vercel AI Gateway. Define `Choice`, `Noul`, and `Score` questions in Java, submit them together, and receive typed results instead of parsing generated text.
 
 Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI or Vercel.
 
-**Version 0.1.0 is available on Maven Central.** Add a dependency to get started; no local source installation or custom Maven repository is required.
+**Version 0.1.1 adds OpenRouter and full endpoint overrides.** Add a dependency to get started; no local source installation or custom Maven repository is required.
 
 ## Installation
 
@@ -16,6 +16,7 @@ Choose the module that matches your application:
 | Artifact | Use it for |
 | --- | --- |
 | `jev-typesafe` | Plain Java client for TypeSafe's public Jev API |
+| `jev-openrouter` | Plain Java client for OpenRouter's alpha Decisions API |
 | `jev-vercel` | Plain Java adapter for Vercel AI Gateway's experimental evaluation protocol |
 | `jev-spring-boot-starter` | Spring Boot auto-configuration with the default JDK transport |
 | `jev-spring-webflux` | Optional WebClient transport and lazy Reactor facade |
@@ -26,11 +27,11 @@ For direct TypeSafe access:
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-typesafe</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 ```
 
-Use `jev-vercel` instead for AI Gateway. Both provider modules bring in `jev-core`; do not add it separately.
+Use `jev-openrouter` for OpenRouter or `jev-vercel` for Vercel AI Gateway. Each provider module brings in `jev-core`; do not add it separately.
 
 Gradle Kotlin DSL:
 
@@ -38,7 +39,7 @@ Gradle Kotlin DSL:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("io.github.gudcks0305:jev-typesafe:0.1.0")
+    implementation("io.github.gudcks0305:jev-typesafe:0.1.1")
 }
 ```
 
@@ -48,6 +49,7 @@ Set the key for your provider:
 
 ```sh
 export TYPESAFE_API_KEY=...
+# or: export OPENROUTER_API_KEY=...
 # or: export AI_GATEWAY_API_KEY=...
 ```
 
@@ -112,27 +114,78 @@ Enum labels use `Enum.name()`. Add enum descriptions with `withDescriptions(Map.
 
 To use Vercel, construct `VercelJevClient.builder().build()` from `io.github.gudcks0305.jev.vercel`. Default models are `jev-latest` for direct TypeSafe and `typesafe-ai/jev` for Vercel; override either with `.model("...")`.
 
+## OpenRouter and custom endpoints
+
+`OpenRouterJevClient` uses `OPENROUTER_API_KEY`, model `typesafe/jev-1.13`, and
+`https://openrouter.ai/api/alpha/decisions`. This is the alpha **Decisions** API,
+not Chat Completions. Choose `jev-openrouter` for plain Java or set
+`jev.provider=openrouter` with the Spring Boot starter. JDK and WebClient
+transports are both supported.
+
+```java
+import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
+
+public final class OpenRouterQuickstart {
+    public static void main(String[] args) {
+        var question = NoulQuestion.of("refund", "Is the customer requesting a refund?");
+        try (var client = OpenRouterJevClient.builder().build()) {
+            var result = client.evaluate("Please refund the duplicate charge.", question);
+            System.out.println(result.answer(question).probability());
+        }
+    }
+}
+```
+
+For proxies, `.baseUrl(URI)` changes the origin/path prefix and still appends the
+provider's endpoint suffix. `.endpoint(URI)` instead uses the **complete URL
+exactly as supplied**, including its path and optional query. Do not configure
+both. These options apply to all three clients and do not change the selected
+provider's authentication or wire format.
+
+| Client | Default model | Path appended to `baseUrl` |
+| --- | --- | --- |
+| `TypeSafeJevClient` | `jev-latest` | `/v1/systemone` |
+| `OpenRouterJevClient` | `typesafe/jev-1.13` | `/api/alpha/decisions` |
+| `VercelJevClient` | `typesafe-ai/jev` | `/v4/ai/evaluation-model` |
+
+Example Spring configuration for an OpenRouter-compatible proxy:
+
+```yaml
+jev:
+  provider: openrouter
+  transport: webclient
+  endpoint: "https://proxy.example.com/evaluate?api-version=1"
+```
+
+OpenRouter may omit probability distributions, confidence, legend, model, and
+usage metadata. Missing values stay absent (score legends can fall back to the
+request's levels). Returned `id`, `provider`, and `usage.cost` remain available
+in `rawResponse()`. OpenRouter criteria support strings/objects/arrays; choice
+descriptions may be null, score levels may not, and Noul descriptions must be
+provided for both true and false or omitted together.
+
 ## Spring Boot
 
-The starter includes both provider adapters and defaults to TypeSafe over JDK `HttpClient`:
+The starter includes all three provider adapters and defaults to TypeSafe over JDK `HttpClient`:
 
 ```xml
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-boot-starter</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 ```
 
 ```yaml
 jev:
-  provider: typesafe # or vercel
+  provider: typesafe # or openrouter / vercel
   transport: jdk
   timeout: 30s
   max-retries: 2
 ```
 
-Inject `JevClient` into blocking services. The starter reads `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` when `jev.api-key` is absent, performs no network call during startup, backs off when the application defines its own `JevClient`, and can be disabled with `jev.enabled=false`.
+Inject `JevClient` into blocking services. The starter reads `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, or `AI_GATEWAY_API_KEY` when `jev.api-key` is absent, performs no network call during startup, backs off when the application defines its own `JevClient`, and can be disabled with `jev.enabled=false`.
 
 ### WebClient and Reactor
 
@@ -142,7 +195,7 @@ The base starter does not pull in WebFlux. Add the optional module and select it
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-webflux</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
 </dependency>
 ```
 
@@ -243,11 +296,12 @@ public final class JevClients implements AutoCloseable {
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `jev.enabled` | `true` | Enable auto-configuration |
-| `jev.provider` | `typesafe` | `typesafe` or `vercel` |
+| `jev.provider` | `typesafe` | `typesafe`, `openrouter`, or `vercel` |
 | `jev.transport` | `jdk` | `jdk` or `webclient` |
 | `jev.api-key` | provider environment variable | Explicit key override |
 | `jev.model` | provider default | Model ID |
-| `jev.base-url` | provider origin | Custom origin/path prefix, without the endpoint suffix |
+| `jev.base-url` | provider origin | Custom origin/path prefix; provider endpoint suffix is appended |
+| `jev.endpoint` | unset | Full request URL, including path/query; mutually exclusive with `jev.base-url` |
 | `jev.timeout` | `30s` | Total deadline across attempts and retry delays |
 | `jev.max-retries` | `2` | Retries after the first attempt, from 0 to 10 |
 
@@ -261,9 +315,9 @@ The SDK preserves missing probabilities, confidence, and token counts as missing
 
 ## Provider status and validation
 
-TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
+TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter uses the official Decisions contract and local HTTP tests; live inference has not been verified because no OpenRouter API key was available. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
-The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The five Java examples in this README were also compiled with `--release 17`.
+The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The six Java examples in this README were also compiled with `--release 17`.
 
 ## Build and run examples from source
 
@@ -279,7 +333,7 @@ cd jev-java
   -Dexec.args=typesafe
 ```
 
-Use `WebClientExample` or `SpringBootExample` for those integration paths. Passing `vercel` selects Gateway; a `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
+Use `WebClientExample` or `SpringBootExample` for those integration paths. Passing `openrouter` selects OpenRouter and `vercel` selects Vercel Gateway; a `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
 
 ## Project links
 

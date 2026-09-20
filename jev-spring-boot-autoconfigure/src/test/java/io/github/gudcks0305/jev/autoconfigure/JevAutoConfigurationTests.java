@@ -1,13 +1,16 @@
 package io.github.gudcks0305.jev.autoconfigure;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import io.github.gudcks0305.jev.Evaluation;
 import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.NoulQuestion;
 import io.github.gudcks0305.jev.Question;
+import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
 import io.github.gudcks0305.jev.vercel.VercelJevClient;
@@ -74,6 +77,23 @@ class JevAutoConfigurationTests {
                     assertThat(context).hasSingleBean(JevClient.class);
                     assertThat(context.getBean(JevClient.class)).isInstanceOf(VercelJevClient.class);
                 });
+    }
+
+    @Test
+    void configuresOpenRouterProvider() {
+        this.contextRunner
+                .withPropertyValues("jev.provider=openrouter", "jev.api-key=test-key")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(JevClient.class);
+                    assertThat(context.getBean(JevClient.class)).isInstanceOf(OpenRouterJevClient.class);
+                });
+    }
+
+    @Test
+    void appliesApiKeyModelAndExactEndpointToEveryProviderRequest() {
+        assertProviderRequest("typesafe", TypeSafeJevClient.class, false);
+        assertProviderRequest("vercel", VercelJevClient.class, true);
+        assertProviderRequest("openrouter", OpenRouterJevClient.class, false);
     }
 
     @Test
@@ -154,6 +174,20 @@ class JevAutoConfigurationTests {
     }
 
     @Test
+    void rejectsConflictingBaseUrlAndEndpoint() {
+        this.contextRunner
+                .withPropertyValues(
+                        "jev.api-key=test-key",
+                        "jev.base-url=https://base.example.test/api",
+                        "jev.endpoint=https://endpoint.example.test/proxy/decisions?tenant=test")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseMessage("Configure either baseUrl or endpoint, not both");
+                });
+    }
+
+    @Test
     void rejectsNegativeMaxRetries() {
         this.contextRunner
                 .withPropertyValues("jev.api-key=test-key", "jev.max-retries=-1")
@@ -195,6 +229,34 @@ class JevAutoConfigurationTests {
                 });
     }
 
+    private void assertProviderRequest(
+            String provider, Class<? extends JevClient> clientType, boolean modelInHeader) {
+        URI endpoint = URI.create("https://proxy.example.test/custom/decisions?tenant=a-b&mode=fast");
+        this.contextRunner
+                .withUserConfiguration(CapturingTransportConfiguration.class)
+                .withSystemProperties("jev.endpoint=" + endpoint)
+                .withPropertyValues(
+                        "jev.provider=" + provider,
+                        "jev.api-key=bound-key",
+                        "jev.model=bound-model",
+                        "jev.transport=webclient")
+                .run(context -> {
+                    assertThat(context.getBean(JevClient.class)).isInstanceOf(clientType);
+                    CapturingTransport transport = context.getBean(CapturingTransport.class);
+                    context.getBean(JevClient.class)
+                            .evaluateAsync("state", NoulQuestion.of("decision", "Decide"));
+                    assertThat(transport.uri).isEqualTo(endpoint);
+                    assertThat(transport.headers)
+                            .containsEntry("Authorization", "Bearer bound-key");
+                    if (modelInHeader) {
+                        assertThat(transport.headers)
+                                .containsEntry("ai-model-id", "bound-model");
+                    } else {
+                        assertThat(transport.body.path("model").asText()).isEqualTo("bound-model");
+                    }
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     static class EnableAutoConfigurationTestConfiguration {
@@ -230,6 +292,35 @@ class JevAutoConfigurationTests {
 
         private final java.util.concurrent.atomic.AtomicInteger exchangeCalls =
                 new java.util.concurrent.atomic.AtomicInteger();
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    static class CapturingTransportConfiguration {
+
+        @Bean
+        CapturingTransport capturingTransport() {
+            return new CapturingTransport();
+        }
+    }
+
+    static final class CapturingTransport implements JevTransport {
+
+        private URI uri;
+        private Map<String, String> headers;
+        private JsonNode body;
+
+        @Override
+        public CompletableFuture<JsonNode> post(
+                URI uri, Map<String, String> headers, JsonNode body) {
+            this.uri = uri;
+            this.headers = headers;
+            this.body = body;
+            return new CompletableFuture<>();
+        }
+
+        @Override
+        public void close() {
+        }
     }
 
     @Configuration(proxyBeanMethods = false)
