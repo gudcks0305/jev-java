@@ -2,7 +2,20 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
-## Offline
+## 0.1.1 OpenRouter and endpoint support
+
+`./mvnw clean verify -Prelease` passed **78 tests, 0 failures/errors/skips**.
+Coverage adds the OpenRouter default route, exact custom path/query over a local
+HTTP server, request and response contract mapping, optional distributions and
+metadata, invalid criteria/legend rejection, all three Spring provider endpoint
+bindings, and mutual exclusion with `baseUrl`. Existing TypeSafe/Vercel tests
+remain in the suite. The prior boolean internal constructors/codec overloads
+remain present for binary compatibility with 0.1.0 provider clients.
+
+OpenRouter live inference is **not verified**: `OPENROUTER_API_KEY` was unavailable.
+Contract sources are linked in [provider protocols](protocols.md).
+
+## 0.1.0 offline baseline
 
 `./mvnw clean verify -Prelease` passed **55 tests, 0 failures/errors/skips** locally. The suite covers:
 

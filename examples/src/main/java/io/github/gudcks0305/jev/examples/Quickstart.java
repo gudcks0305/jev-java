@@ -3,6 +3,7 @@ package io.github.gudcks0305.jev.examples;
 import io.github.gudcks0305.jev.*;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
 import io.github.gudcks0305.jev.vercel.VercelJevClient;
+import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import java.util.List;
 
 /** A small, opt-in live request. Requires the selected provider's API key in the environment. */
@@ -14,7 +15,8 @@ public final class Quickstart {
         try (JevClient client = switch (provider) {
             case "typesafe" -> TypeSafeJevClient.builder().build();
             case "vercel" -> VercelJevClient.builder().build();
-            default -> throw new IllegalArgumentException("Provider must be typesafe or vercel");
+            case "openrouter" -> OpenRouterJevClient.builder().build();
+            default -> throw new IllegalArgumentException("Provider must be typesafe, vercel, or openrouter");
         }) {
             var route = ChoiceQuestion.of("route", "Which department should handle this?", Department.class);
             var billing = NoulQuestion.of("billing", "Does the message describe a billing problem?");

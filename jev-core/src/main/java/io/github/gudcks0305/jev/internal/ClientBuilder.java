@@ -11,6 +11,7 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     private String apiKey;
     private String model;
     private URI baseUrl;
+    private URI endpoint;
     private Duration timeout = Duration.ofSeconds(30);
     private int maxRetries = 2;
     private HttpClient httpClient;
@@ -20,6 +21,8 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     public B apiKey(String apiKey) { this.apiKey = Objects.requireNonNull(apiKey, "apiKey"); return self(); }
     public B model(String model) { this.model = Objects.requireNonNull(model, "model"); return self(); }
     public B baseUrl(URI baseUrl) { this.baseUrl = Objects.requireNonNull(baseUrl, "baseUrl"); return self(); }
+    /** Full request URL, including path and optional query. Mutually exclusive with baseUrl. */
+    public B endpoint(URI endpoint) { this.endpoint = Objects.requireNonNull(endpoint, "endpoint"); return self(); }
     /** Total HTTP deadline, including retries, for the default JDK transport. */
     public B timeout(Duration timeout) { this.timeout = Objects.requireNonNull(timeout, "timeout"); return self(); }
     /** Retry count for the default JDK transport. Injected transports own their retry policy. */
@@ -33,19 +36,32 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
         if (!key.chars().allMatch(c -> c >= 33 && c <= 126)) throw new IllegalArgumentException("Invalid API key format");
         String modelId = JsonSupport.nonBlank(model == null ? defaultModel : model, "Model");
         if (modelId.chars().anyMatch(c -> c < 32 || c == 127)) throw new IllegalArgumentException("Invalid model format");
-        URI base = baseUrl == null ? defaultBaseUrl : baseUrl;
-        if (!("https".equalsIgnoreCase(base.getScheme()) || "http".equalsIgnoreCase(base.getScheme()))
-                || base.getHost() == null || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null) {
-            throw new IllegalArgumentException("baseUrl must be an HTTP(S) URL without credentials, query, or fragment");
+        if (baseUrl != null && endpoint != null) throw new IllegalArgumentException("Configure either baseUrl or endpoint, not both");
+        URI target;
+        if (endpoint != null) {
+            validateUrl(endpoint, "endpoint", true);
+            target = endpoint;
+        } else {
+            URI base = baseUrl == null ? defaultBaseUrl : baseUrl;
+            validateUrl(base, "baseUrl", false);
+            target = URI.create(base.toString().replaceAll("/+$", "") + "/" + path);
         }
         if (timeout.isZero() || timeout.isNegative() || timeout.compareTo(Duration.ofDays(1)) > 0) {
             throw new IllegalArgumentException("timeout must be positive and at most 1 day");
         }
         if (maxRetries < 0 || maxRetries > 10) throw new IllegalArgumentException("maxRetries must be between 0 and 10");
         if (transport != null && httpClient != null) throw new IllegalArgumentException("Configure either transport or httpClient, not both");
-        URI endpoint = URI.create(base.toString().replaceAll("/+$", "") + "/" + path);
         JevTransport selected = transport == null ? new HttpTransport(httpClient == null ? DefaultHttp.CLIENT : httpClient, timeout, maxRetries) : transport;
-        return new Config(key, modelId, endpoint, selected, transport == null);
+        return new Config(key, modelId, target, selected, transport == null);
+    }
+
+    private static void validateUrl(URI uri, String field, boolean allowQuery) {
+        if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
+                || uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null
+                || (!allowQuery && uri.getQuery() != null)) {
+            throw new IllegalArgumentException(field + " must be an HTTP(S) URL without credentials or fragment"
+                    + (allowQuery ? "" : " or query"));
+        }
     }
 
     protected static final class Config {

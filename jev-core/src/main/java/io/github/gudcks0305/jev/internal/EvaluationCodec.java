@@ -13,11 +13,17 @@ public final class EvaluationCodec {
     private EvaluationCodec() {}
 
     public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, boolean gateway) {
+        return request(state, questions, model, gateway ? WireFormat.VERCEL : WireFormat.TYPESAFE);
+    }
+
+    public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, WireFormat format) {
+        boolean gateway = format == WireFormat.VERCEL;
         ObjectNode body = JsonSupport.object();
         body.set("state", JsonSupport.content(state, "State"));
         if (!gateway) body.put("model", model);
         ObjectNode encoded = body.putObject("questions");
         questions.forEach((id, question) -> {
+            if (format == WireFormat.OPENROUTER) validateOpenRouterCriteria(question);
             ObjectNode entry = encoded.putObject(id);
             entry.set("instructions", question.instructions());
             if (question instanceof ChoiceQuestion<?> choice) {
@@ -28,13 +34,23 @@ public final class EvaluationCodec {
                 entry.set("criteria", score.criteria());
             } else if (question instanceof NoulQuestion noul) {
                 entry.put("type", gateway ? "boolean" : "noul");
-                if (noul.criteria() != null) entry.set("criteria", noul.criteria());
+                JsonNode criteria = noul.criteria();
+                if (criteria != null && !(format == WireFormat.OPENROUTER
+                        && criteria.path("true").isNull() && criteria.path("false").isNull())) {
+                    entry.set("criteria", criteria);
+                }
             }
         });
         return body;
     }
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, boolean gateway) {
+        return response(body, questions, requestedModel, gateway ? WireFormat.VERCEL : WireFormat.TYPESAFE);
+    }
+
+    public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, WireFormat format) {
+        boolean gateway = format == WireFormat.VERCEL;
+        boolean optionalProbabilities = format != WireFormat.TYPESAFE;
         require(body != null && body.isObject(), "Expected an object response");
         JsonNode wireAnswers = body.path("answers");
         require(wireAnswers.isObject() && wireAnswers.size() == questions.size(), "Answer ids do not match requested questions");
@@ -49,7 +65,7 @@ public final class EvaluationCodec {
                 answers.put(id, new NoulAnswer(probability(wire.path(gateway ? "probability" : "noul"))));
             } else if (question instanceof ChoiceQuestion<?> choice) {
                 require(wire.path("type").asText().equals("choice"), "Answer type mismatch");
-                answers.put(id, choiceAnswer(choice, wire, confidence, gateway));
+                answers.put(id, choiceAnswer(choice, wire, confidence, optionalProbabilities));
             } else if (question instanceof ScoreQuestion score) {
                 require(wire.path("type").asText().equals("score"), "Answer type mismatch");
                 double value = number(wire.path("score"));
@@ -57,7 +73,7 @@ public final class EvaluationCodec {
                 Map<Integer, Double> probabilities = new LinkedHashMap<>();
                 Map<Integer, JsonNode> legend = new LinkedHashMap<>();
                 JsonNode distribution = wire.path("probabilities");
-                require(gateway || distribution.isObject(), "Missing score distribution");
+                require(optionalProbabilities || distribution.isObject(), "Missing score distribution");
                 if (!distribution.isMissingNode()) {
                     require(distribution.isObject() && distribution.size() == score.levelCount(), "Score distribution levels mismatch");
                     for (int i = 0; i < score.levelCount(); i++) probabilities.put(i, probability(distribution.path(Integer.toString(i))));
@@ -71,7 +87,12 @@ public final class EvaluationCodec {
                     if (wireLegend.isMissingNode()) legend.put(i, criteria.get(i));
                     else {
                         require(wireLegend.has(Integer.toString(i)), "Score legend levels mismatch");
-                        legend.put(i, wireLegend.get(Integer.toString(i)));
+                        JsonNode description = wireLegend.get(Integer.toString(i));
+                        if (format == WireFormat.OPENROUTER) {
+                            require(description.isTextual() || description.isObject() || description.isArray(),
+                                    "Invalid OpenRouter score legend description");
+                        }
+                        legend.put(i, description);
                     }
                 }
                 answers.put(id, new ScoreAnswer(value, probabilities, legend, confidence(confidence)));
@@ -89,13 +110,13 @@ public final class EvaluationCodec {
         return new Evaluation(model, tokenUsage, questions, answers, body);
     }
 
-    private static <T> ChoiceAnswer<T> choiceAnswer(ChoiceQuestion<T> question, JsonNode wire, JsonNode confidence, boolean gateway) {
+    private static <T> ChoiceAnswer<T> choiceAnswer(ChoiceQuestion<T> question, JsonNode wire, JsonNode confidence, boolean optionalProbabilities) {
         require(wire.path("choice").isTextual(), "Missing choice label");
         String label = wire.path("choice").textValue();
         require(question.options().containsKey(label), "Unknown choice label");
         Map<T, Double> probabilities = new LinkedHashMap<>();
         JsonNode distribution = wire.path("probabilities");
-        require(gateway || distribution.isObject(), "Missing choice distribution");
+        require(optionalProbabilities || distribution.isObject(), "Missing choice distribution");
         if (!distribution.isMissingNode()) {
             require(distribution.isObject() && distribution.size() == question.options().size(), "Choice distribution options mismatch");
             question.options().forEach((key, value) -> probabilities.put(value, probability(distribution.path(key))));
@@ -105,6 +126,26 @@ public final class EvaluationCodec {
 
     private static OptionalDouble confidence(JsonNode node) {
         return node.isMissingNode() || node.isNull() ? OptionalDouble.empty() : OptionalDouble.of(probability(node));
+    }
+    private static void validateOpenRouterCriteria(Question<?> question) {
+        if (question instanceof ChoiceQuestion<?> choice) {
+            choice.criteria().elements().forEachRemaining(value -> requireCriterion(value, true));
+        } else if (question instanceof ScoreQuestion score) {
+            score.criteria().elements().forEachRemaining(value -> requireCriterion(value, false));
+        } else if (question instanceof NoulQuestion noul && noul.criteria() != null) {
+            JsonNode criteria = noul.criteria();
+            JsonNode yes = criteria.path("true");
+            JsonNode no = criteria.path("false");
+            if (yes.isNull() && no.isNull()) return;
+            requireCriterion(yes, false);
+            requireCriterion(no, false);
+        }
+    }
+    private static void requireCriterion(JsonNode node, boolean allowNull) {
+        if (!(node.isTextual() || node.isObject() || node.isArray() || (allowNull && node.isNull()))) {
+            throw new IllegalArgumentException("OpenRouter criteria must be strings, objects, or arrays"
+                    + (allowNull ? " (null is also allowed for choice descriptions)" : ""));
+        }
     }
     private static OptionalLong tokens(JsonNode node) {
         if (node.isMissingNode() || node.isNull()) return OptionalLong.empty();

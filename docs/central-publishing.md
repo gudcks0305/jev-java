@@ -32,7 +32,7 @@ operation checks that all four secrets exist before signing or contacting Centra
 2. Choose **verify** to test/build the Central packaging without credentials,
    signatures, or any upload. This is the default.
 3. After the namespace and signing key are ready, choose **upload**. It signs and
-   uploads the parent POM and six SDK modules, then waits for Portal validation.
+   uploads the parent POM and all SDK modules, then waits for Portal validation.
 4. Inspect the validated deployment in [Central Portal](https://central.sonatype.com/publishing)
    and publish it there when ready. `autoPublish` is deliberately `false`.
 

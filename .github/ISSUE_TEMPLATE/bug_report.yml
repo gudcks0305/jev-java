@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Jev Java version
-      placeholder: 0.1.0
+      placeholder: 0.1.1
     validations:
       required: true
   - type: dropdown
@@ -21,6 +21,7 @@ body:
         - jev-core
         - jev-typesafe
         - jev-vercel
+        - jev-openrouter
         - jev-spring-webflux
         - jev-spring-boot-autoconfigure
         - jev-spring-boot-starter
@@ -39,7 +40,7 @@ body:
     id: provider_transport
     attributes:
       label: Provider and transport
-      placeholder: TypeSafe with JDK, or Vercel with WebClient
+      placeholder: TypeSafe with JDK, OpenRouter with WebClient, or Vercel
     validations:
       required: true
   - type: textarea
