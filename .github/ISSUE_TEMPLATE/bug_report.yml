@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Jev Java version
-      placeholder: 0.1.1
+      placeholder: 0.2.0
     validations:
       required: true
   - type: dropdown
@@ -22,6 +22,7 @@ body:
         - jev-typesafe
         - jev-vercel
         - jev-openrouter
+        - jev-cloudflare
         - jev-spring-webflux
         - jev-spring-boot-autoconfigure
         - jev-spring-boot-starter

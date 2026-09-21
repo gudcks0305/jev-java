@@ -4,6 +4,7 @@ import io.github.gudcks0305.jev.*;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
 import io.github.gudcks0305.jev.vercel.VercelJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
+import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
 import io.github.gudcks0305.jev.webflux.ReactorJevClient;
 import io.github.gudcks0305.jev.webflux.WebClientJevTransport;
 import java.time.Duration;
@@ -25,7 +26,8 @@ public final class WebClientExample {
                  case "typesafe" -> TypeSafeJevClient.builder().transport(transport).build();
                  case "vercel" -> VercelJevClient.builder().transport(transport).build();
                  case "openrouter" -> OpenRouterJevClient.builder().transport(transport).build();
-                 default -> throw new IllegalArgumentException("Provider must be typesafe, vercel, or openrouter");
+                 case "cloudflare" -> CloudflareJevClient.builder().transport(transport).build();
+                 default -> throw new IllegalArgumentException("Provider must be typesafe, vercel, openrouter, or cloudflare");
              }) {
             var question = NoulQuestion.of("refund", "Does the customer request a refund?");
             var reactor = new ReactorJevClient(client);

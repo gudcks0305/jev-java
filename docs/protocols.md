@@ -59,6 +59,20 @@ Sources: [official Decisions API](https://openrouter.ai/docs/api/api-reference/a
 This is an alpha API. OpenRouter live inference has not been tested in this
 development account; protocol tests use a local HTTP server and fixtures.
 
+## Cloudflare (since 0.2.0)
+
+- `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run`
+- Bearer `CLOUDFLARE_API_TOKEN`, account from `CLOUDFLARE_ACCOUNT_ID` or builder/Spring configuration.
+- Default model `typesafe/jev`; request `{model, input: {state, questions}}`.
+- Direct TypeSafe-shaped answers and Cloudflare `{success: true, result: ...}` envelopes are decoded; the original body remains in `rawResponse()`.
+- A declared `success: false` is an error, never a successful evaluation.
+- This is third-party model access through Cloudflare, not a claim of native Jev weight hosting.
+
+Sources: [Cloudflare Jev catalog](https://developers.cloudflare.com/ai/models/typesafe/jev/),
+[REST API and token permissions](https://developers.cloudflare.com/ai-gateway/usage/rest-api/).
+Account > Workers AI > Read permission is required even for the third-party Jev model.
+Only an AI Gateway management permission is insufficient. Live Cloudflare inference has not been verified.
+
 ## URL configuration
 
 `baseUrl` is an origin with an optional path prefix. The adapter appends its full endpoint suffix (`v1/systemone`, `v4/ai/evaluation-model`, or `api/alpha/decisions`). Do not include that suffix twice. Since 0.1.1, `endpoint(URI)` / Spring `jev.endpoint` accepts the complete URL and preserves its path/query without appending anything. The two options are mutually exclusive. The selected client still determines authentication and wire format. User-info and fragments are rejected; `baseUrl` also rejects queries. Use HTTPS for real API keys; HTTP exists for local servers/proxies.

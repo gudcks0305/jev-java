@@ -1,6 +1,7 @@
 package io.github.gudcks0305.jev.autoconfigure;
 
 import io.github.gudcks0305.jev.JevClient;
+import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
@@ -35,6 +36,7 @@ public class JevAutoConfiguration {
             case TYPESAFE -> typeSafeClient(properties, transport);
             case VERCEL -> vercelClient(properties, transport);
             case OPENROUTER -> openRouterClient(properties, transport);
+            case CLOUDFLARE -> cloudflareClient(properties, transport);
         };
     }
 
@@ -107,6 +109,31 @@ public class JevAutoConfiguration {
         }
         if (hasText(properties.getModel())) {
             builder.model(properties.getModel());
+        }
+        if (properties.getBaseUrl() != null) {
+            builder.baseUrl(properties.getBaseUrl());
+        }
+        if (properties.getEndpoint() != null) {
+            builder.endpoint(properties.getEndpoint());
+        }
+        return builder.build();
+    }
+
+    private static JevClient cloudflareClient(JevProperties properties, JevTransport transport) {
+        var builder = CloudflareJevClient.builder()
+                .timeout(properties.getTimeout())
+                .maxRetries(properties.getMaxRetries());
+        if (transport != null) {
+            builder.transport(transport);
+        }
+        if (hasText(properties.getApiKey())) {
+            builder.apiKey(properties.getApiKey());
+        }
+        if (hasText(properties.getModel())) {
+            builder.model(properties.getModel());
+        }
+        if (hasText(properties.getAccountId())) {
+            builder.accountId(properties.getAccountId());
         }
         if (properties.getBaseUrl() != null) {
             builder.baseUrl(properties.getBaseUrl());

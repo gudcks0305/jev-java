@@ -30,6 +30,9 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     public B httpClient(HttpClient httpClient) { this.httpClient = Objects.requireNonNull(httpClient, "httpClient"); return self(); }
     public B transport(JevTransport transport) { this.transport = Objects.requireNonNull(transport, "transport"); return self(); }
 
+    /** Whether the caller supplied a complete endpoint URL. */
+    protected final boolean hasEndpointOverride() { return endpoint != null; }
+
     protected Config configure(String keyEnvironment, String defaultModel, URI defaultBaseUrl, String path) {
         String key = apiKey == null ? System.getenv(keyEnvironment) : apiKey;
         if (key == null || key.isBlank()) throw new IllegalArgumentException("Set apiKey or " + keyEnvironment);
