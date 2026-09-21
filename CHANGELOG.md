@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — 2026-09-21
+
+- First-class annotated Java record outputs in `jev-core`: `JevSchema<T>` and `TypedEvaluation<T>`.
+- Boolean, enum/Optional enum, raw probability, weighted score, nested records, and independent enum labels.
+- Explicit thresholds, schema preflight, original answer/metadata preservation, and cancellation-aware async/Reactor mapping.
+- Cloudflare `typesafe/jev` adapter, account-scoped configuration, response envelope handling and Spring integration.
+- Existing manual question APIs and provider URL settings remain available.
+
+Cloudflare live inference is unverified without credentials. The record path is validated with contract tests and the TypeSafe live example.
+
 ## 0.1.1 — 2026-09-20
 
 - OpenRouter alpha Decisions adapter (`jev-openrouter`, `OpenRouterJevClient`).

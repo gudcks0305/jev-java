@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.gudcks0305</groupId>
         <artifactId>jev-java</artifactId>
-        <version>0.1.1</version>
+        <version>0.2.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -38,6 +38,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>jev-openrouter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>jev-cloudflare</artifactId>
         </dependency>
     </dependencies>
     <profiles>

@@ -5,7 +5,7 @@ version="${1:?Usage: scripts/package-release.sh VERSION (after ./mvnw verify -Pr
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected a stable x.y.z version' >&2; exit 1; }
 out="dist/release/$version"
 mkdir -p "$out"
-modules=(jev-core jev-typesafe jev-vercel jev-openrouter jev-spring-webflux jev-spring-boot-autoconfigure jev-spring-boot-starter)
+modules=(jev-core jev-typesafe jev-vercel jev-openrouter jev-cloudflare jev-spring-webflux jev-spring-boot-autoconfigure jev-spring-boot-starter)
 for module in "${modules[@]}"; do
   cp "$module/target/$module-$version.jar" "$out/"
   # The dependency-only starter has no Java source or Javadoc.

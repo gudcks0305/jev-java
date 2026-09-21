@@ -18,10 +18,16 @@ public final class EvaluationCodec {
 
     public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, WireFormat format) {
         boolean gateway = format == WireFormat.VERCEL;
+        boolean cloudflare = format == WireFormat.CLOUDFLARE;
         ObjectNode body = JsonSupport.object();
-        body.set("state", JsonSupport.content(state, "State"));
-        if (!gateway) body.put("model", model);
-        ObjectNode encoded = body.putObject("questions");
+        ObjectNode input = body;
+        if (cloudflare) {
+            body.put("model", model);
+            input = body.putObject("input");
+        }
+        input.set("state", JsonSupport.content(state, "State"));
+        if (!gateway && !cloudflare) body.put("model", model);
+        ObjectNode encoded = input.putObject("questions");
         questions.forEach((id, question) -> {
             if (format == WireFormat.OPENROUTER) validateOpenRouterCriteria(question);
             ObjectNode entry = encoded.putObject(id);
@@ -50,15 +56,23 @@ public final class EvaluationCodec {
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, WireFormat format) {
         boolean gateway = format == WireFormat.VERCEL;
-        boolean optionalProbabilities = format != WireFormat.TYPESAFE;
+        boolean optionalProbabilities = format == WireFormat.VERCEL || format == WireFormat.OPENROUTER;
         require(body != null && body.isObject(), "Expected an object response");
-        JsonNode wireAnswers = body.path("answers");
+        JsonNode normalized = body;
+        if (format == WireFormat.CLOUDFLARE && isCloudflareEnvelope(body)) {
+            require(body.path("success").isBoolean(), "Invalid Cloudflare response envelope");
+            require(body.path("success").booleanValue(), "Cloudflare request failed");
+            require(body.path("result").isObject(), "Invalid Cloudflare response result");
+            normalized = body.path("result");
+        }
+        JsonNode payload = normalized;
+        JsonNode wireAnswers = payload.path("answers");
         require(wireAnswers.isObject() && wireAnswers.size() == questions.size(), "Answer ids do not match requested questions");
         Map<String, Answer> answers = new LinkedHashMap<>();
         questions.forEach((id, question) -> {
             JsonNode wire = wireAnswers.path(id);
             require(wire.isObject(), "Missing or invalid answer");
-            JsonNode confidence = gateway ? body.path("providerMetadata").path("typesafe").path("confidence").path(id)
+            JsonNode confidence = gateway ? payload.path("providerMetadata").path("typesafe").path("confidence").path(id)
                     : wire.path("confidence");
             if (question instanceof NoulQuestion) {
                 require(wire.path("type").asText().equals(gateway ? "boolean" : "noul"), "Answer type mismatch");
@@ -99,15 +113,19 @@ public final class EvaluationCodec {
             }
         });
         String model = requestedModel;
-        if (body.has("model")) {
-            require(body.path("model").isTextual() && !body.path("model").asText().isBlank(), "Invalid response model");
-            model = body.path("model").textValue();
+        if (payload.has("model")) {
+            require(payload.path("model").isTextual() && !payload.path("model").asText().isBlank(), "Invalid response model");
+            model = payload.path("model").textValue();
         }
-        JsonNode usage = body.path("usage");
+        JsonNode usage = payload.path("usage");
         require(usage.isMissingNode() || usage.isObject(), "Invalid token usage");
         Usage tokenUsage = new Usage(tokens(usage.path(gateway ? "inputTokens" : "input_tokens")),
                 tokens(usage.path(gateway ? "outputTokens" : "output_tokens")));
         return new Evaluation(model, tokenUsage, questions, answers, body);
+    }
+
+    private static boolean isCloudflareEnvelope(JsonNode body) {
+        return body.has("success") || body.has("result") || body.has("errors") || body.has("messages");
     }
 
     private static <T> ChoiceAnswer<T> choiceAnswer(ChoiceQuestion<T> question, JsonNode wire, JsonNode confidence, boolean optionalProbabilities) {

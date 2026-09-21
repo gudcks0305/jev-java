@@ -2,6 +2,22 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## 0.2.0 records and Cloudflare (2026-09-21)
+
+`./mvnw clean verify -Prelease` passed **115 tests, 0 failures/errors/skips**.
+Record tests cover every supported field type, explicit threshold boundaries,
+nested/reused records, immutable multi-label collections, Optional no-match,
+invalid/recursive/generic schemas rejected before HTTP, question identity,
+concurrent schema reuse, constructor rejection and async/Reactor cancellation.
+Cloudflare tests cover account-scoped URLs, exact endpoint overrides, request
+envelopes, direct/enveloped responses, error envelopes and Spring configuration.
+
+The live `RecordExample typesafe` call returned a `Triage` record containing
+`BILLING`, `urgent=true`, refund probability `0.99` and score `1.19`; the same
+evaluation retained model `jev-1.13.0`, four questions and 409 input tokens.
+This confirms record construction from a real response, not classification accuracy.
+Cloudflare live inference was not tested: account ID and API token were unavailable.
+
 ## 0.1.1 OpenRouter and endpoint support
 
 `./mvnw clean verify -Prelease` passed **78 tests, 0 failures/errors/skips**.

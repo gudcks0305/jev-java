@@ -22,6 +22,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class TypeSafeJevClientTest {
     enum Team { BILLING, TECHNICAL }
+    record MappedTicket(
+            @io.github.gudcks0305.jev.schema.JevChoice("Which team?") Team route,
+            @io.github.gudcks0305.jev.schema.JevBoolean(value = "Urgent?", threshold = .9) boolean urgent,
+            @io.github.gudcks0305.jev.schema.JevScore(value = "Severity?", levels = {"Low", "Medium", "High"}) double score) {}
+
+    @Test void nativeProviderCanEvaluateRecordWithoutManualQuestions() throws Exception {
+        Stub transport = new Stub(response());
+        try (var client = client(transport)) {
+            var result = client.evaluate("state", MappedTicket.class);
+            assertEquals(Team.BILLING, result.value().route());
+            assertTrue(result.value().urgent());
+            assertEquals(1.6, result.value().score());
+            assertEquals(3, transport.body.path("questions").size());
+        }
+    }
     private static final ObjectMapper JSON = new ObjectMapper();
     private final ChoiceQuestion<Team> route = ChoiceQuestion.of("route", "Which team?", Team.class);
     private final NoulQuestion urgent = NoulQuestion.of("urgent", "Is it urgent?");

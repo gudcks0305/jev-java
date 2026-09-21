@@ -10,6 +10,7 @@ import io.github.gudcks0305.jev.Evaluation;
 import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.NoulQuestion;
 import io.github.gudcks0305.jev.Question;
+import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
@@ -90,10 +91,24 @@ class JevAutoConfigurationTests {
     }
 
     @Test
+    void configuresCloudflareProvider() {
+        this.contextRunner
+                .withPropertyValues(
+                        "jev.provider=cloudflare",
+                        "jev.api-key=test-key",
+                        "jev.account-id=account-id")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(JevClient.class);
+                    assertThat(context.getBean(JevClient.class)).isInstanceOf(CloudflareJevClient.class);
+                });
+    }
+
+    @Test
     void appliesApiKeyModelAndExactEndpointToEveryProviderRequest() {
         assertProviderRequest("typesafe", TypeSafeJevClient.class, false);
         assertProviderRequest("vercel", VercelJevClient.class, true);
         assertProviderRequest("openrouter", OpenRouterJevClient.class, false);
+        assertProviderRequest("cloudflare", CloudflareJevClient.class, false);
     }
 
     @Test
@@ -124,11 +139,36 @@ class JevAutoConfigurationTests {
     }
 
     @Test
+    void usesWebClientTransportForCloudflareWithBoundAccountId() {
+        this.contextRunner
+                .withUserConfiguration(UserWebClientConfiguration.class)
+                .withPropertyValues(
+                        "jev.provider=cloudflare",
+                        "jev.api-key=test-key",
+                        "jev.account-id=bound-account",
+                        "jev.base-url=https://proxy.example.test/client/v4",
+                        "jev.transport=webclient")
+                .run(context -> {
+                    assertThat(context.getBean(JevClient.class)).isInstanceOf(CloudflareJevClient.class);
+                    UserWebClientProbe probe = context.getBean(UserWebClientProbe.class);
+                    context.getBean(JevClient.class)
+                            .evaluateAsync("test state", NoulQuestion.of("decision", "Decide"))
+                            .handle((result, failure) -> null)
+                            .join();
+                    assertThat(probe.uri).isEqualTo(URI.create(
+                            "https://proxy.example.test/client/v4/accounts/bound-account/ai/run"));
+                    assertThat(probe.filterCalls.get()).isEqualTo(1);
+                    assertThat(probe.exchangeCalls.get()).isEqualTo(1);
+                });
+    }
+
+    @Test
     void bindsAllProperties() {
         this.contextRunner
                 .withPropertyValues(
                         "jev.api-key=test-key",
                         "jev.model=test-model",
+                        "jev.account-id=test-account",
                         "jev.transport=jdk",
                         "jev.base-url=https://example.test/api",
                         "jev.timeout=5s",
@@ -137,6 +177,7 @@ class JevAutoConfigurationTests {
                     JevProperties properties = context.getBean(JevProperties.class);
                     assertThat(properties.getApiKey()).isEqualTo("test-key");
                     assertThat(properties.getModel()).isEqualTo("test-model");
+                    assertThat(properties.getAccountId()).isEqualTo("test-account");
                     assertThat(properties.getTransport()).isEqualTo(JevProperties.Transport.JDK);
                     assertThat(properties.getBaseUrl()).isEqualTo(URI.create("https://example.test/api"));
                     assertThat(properties.getTimeout()).isEqualTo(Duration.ofSeconds(5));
@@ -275,6 +316,7 @@ class JevAutoConfigurationTests {
             return WebClient.builder()
                     .filter((request, next) -> {
                         probe.filterCalls.incrementAndGet();
+                        probe.uri = request.url();
                         return next.exchange(ClientRequest.from(request).build());
                     })
                     .exchangeFunction(request -> {
@@ -292,6 +334,8 @@ class JevAutoConfigurationTests {
 
         private final java.util.concurrent.atomic.AtomicInteger exchangeCalls =
                 new java.util.concurrent.atomic.AtomicInteger();
+
+        private URI uri;
     }
 
     @Configuration(proxyBeanMethods = false)

@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-java</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
   <packaging>pom</packaging>
   <name>Jev Java</name>
   <description>Unofficial typed Java SDK for TypeSafe Jev and Vercel AI Gateway</description>
@@ -12,7 +12,7 @@
   <developers><developer><id>gudcks0305</id><name>gudcks0305</name></developer></developers>
   <scm child.scm.connection.inherit.append.path="false" child.scm.developerConnection.inherit.append.path="false" child.scm.url.inherit.append.path="false"><connection>scm:git:https://github.com/gudcks0305/jev-java.git</connection><developerConnection>scm:git:ssh://git@github.com/gudcks0305/jev-java.git</developerConnection><url>https://github.com/gudcks0305/jev-java</url></scm>
   <modules>
-    <module>jev-core</module><module>jev-typesafe</module><module>jev-vercel</module><module>jev-openrouter</module>
+    <module>jev-core</module><module>jev-typesafe</module><module>jev-vercel</module><module>jev-openrouter</module><module>jev-cloudflare</module>
     <module>jev-spring-webflux</module><module>jev-spring-boot-autoconfigure</module><module>jev-spring-boot-starter</module><module>examples</module>
   </modules>
   <properties>
@@ -30,6 +30,7 @@
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-typesafe</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-vercel</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-openrouter</artifactId><version>${project.version}</version></dependency>
+    <dependency><groupId>${project.groupId}</groupId><artifactId>jev-cloudflare</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-webflux</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-boot-autoconfigure</artifactId><version>${project.version}</version></dependency>
     <dependency><groupId>${project.groupId}</groupId><artifactId>jev-spring-boot-starter</artifactId><version>${project.version}</version></dependency>
