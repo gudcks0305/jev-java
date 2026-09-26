@@ -1,6 +1,7 @@
 # Provider contracts
 
-Checked on 2026-09-20. This SDK is unofficial.
+Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26.
+This SDK is unofficial.
 
 ## TypeSafe direct
 
@@ -11,6 +12,12 @@ Checked on 2026-09-20. This SDK is unofficial.
 - Responses: named `answers`, resolved `model`, snake_case token usage.
 
 Sources: [HTTP API](https://docs.typesafe.ai/api), [models](https://docs.typesafe.ai/models), [structured criteria](https://docs.typesafe.ai/primitives/advanced).
+
+Netlify AI Gateway documents Jev through this TypeSafe API rather than a
+separate Java wire format. It supplies `TYPESAFE_API_KEY` and
+`TYPESAFE_BASE_URL` in supported compute contexts; the Java client requires an
+explicit `baseUrl` / `jev.base-url` to use that route. See the
+[Netlify configuration guide](netlify-ai-gateway.md) for runtime limits.
 
 ## Vercel AI Gateway
 
