@@ -2,13 +2,20 @@ package io.github.gudcks0305.jev.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.github.gudcks0305.jev.*;
+import io.github.gudcks0305.jev.observation.EvaluationEvent;
+import io.github.gudcks0305.jev.observation.EvaluationObserver;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import java.net.URI;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,6 +27,7 @@ public abstract class AbstractJevClient implements JevClient {
     private final String model;
     private final Map<String, String> headers;
     private final WireFormat format;
+    private final EvaluationObserver observer;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Set<CompletableFuture<Evaluation>> calls = ConcurrentHashMap.newKeySet();
 
@@ -32,6 +40,7 @@ public abstract class AbstractJevClient implements JevClient {
         this.ownsTransport = config.ownsTransport;
         this.endpoint = config.endpoint;
         this.model = config.model;
+        this.observer = config.observer;
         this.format = Objects.requireNonNull(format, "format");
         Map<String, String> values = new LinkedHashMap<>();
         values.put("Authorization", "Bearer " + config.apiKey);
@@ -57,13 +66,16 @@ public abstract class AbstractJevClient implements JevClient {
             if (indexed.putIfAbsent(question.id(), question) != null) throw new IllegalArgumentException("Duplicate question id");
         }
         JsonNode body = EvaluationCodec.request(state, indexed, model, format);
+        long startedNanos = System.nanoTime();
         CompletableFuture<Evaluation> result = new CompletableFuture<>();
         AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
+        AtomicReference<String> returnedModel = observer == null ? null : new AtomicReference<>();
         calls.add(result);
         result.whenComplete((value, failure) -> {
             calls.remove(result);
             CompletableFuture<JsonNode> pending = source.get();
             if (pending != null && !pending.isDone()) pending.cancel(true);
+            notifyObserver(startedNanos, indexed.size(), returnedModel == null ? null : returnedModel.get(), value, failure);
         });
         if (closed.get()) result.completeExceptionally(closedError());
         if (result.isDone()) return result;
@@ -75,7 +87,11 @@ public abstract class AbstractJevClient implements JevClient {
                 if (result.isDone()) return;
                 if (failure != null) result.completeExceptionally(failure);
                 else {
-                    try { result.complete(EvaluationCodec.response(response, indexed, model, format)); }
+                    try {
+                        Evaluation evaluation = EvaluationCodec.response(response, indexed, model, format);
+                        if (returnedModel != null) returnedModel.set(providerModel(response));
+                        result.complete(evaluation);
+                    }
                     catch (JevException ex) { result.completeExceptionally(ex); }
                     catch (RuntimeException ex) { result.completeExceptionally(new JevException(JevException.Kind.PROTOCOL, "Invalid evaluation response")); }
                 }
@@ -93,4 +109,39 @@ public abstract class AbstractJevClient implements JevClient {
     }
 
     private static JevException closedError() { return new JevException(JevException.Kind.CLOSED, "Jev client is closed"); }
+
+    private String providerModel(JsonNode response) {
+        JsonNode payload = format == WireFormat.CLOUDFLARE && response.has("result")
+                ? response.path("result") : response;
+        JsonNode value = payload.path("model");
+        return value.isTextual() ? value.textValue() : null;
+    }
+
+    private void notifyObserver(long startedNanos, int questionCount, String returnedModel,
+                                Evaluation evaluation, Throwable failure) {
+        if (observer == null) return;
+        EvaluationEvent.Outcome outcome;
+        Optional<Usage> usage = Optional.empty();
+        Optional<String> providerModel = Optional.empty();
+        Optional<JevException.Kind> errorKind = Optional.empty();
+        OptionalInt statusCode = OptionalInt.empty();
+        if (failure == null) {
+            outcome = EvaluationEvent.Outcome.SUCCESS;
+            usage = Optional.of(evaluation.usage());
+            providerModel = Optional.ofNullable(returnedModel);
+        } else {
+            Throwable cause = failure;
+            while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
+            outcome = cause instanceof CancellationException
+                    ? EvaluationEvent.Outcome.CANCELLED : EvaluationEvent.Outcome.FAILURE;
+            if (cause instanceof JevException jev) {
+                errorKind = Optional.of(jev.kind());
+                if (jev.statusCode() > 0) statusCode = OptionalInt.of(jev.statusCode());
+            }
+        }
+        EvaluationEvent event = new EvaluationEvent(Duration.ofNanos(Math.max(0, System.nanoTime() - startedNanos)),
+                model, providerModel, questionCount, outcome, usage, errorKind, statusCode);
+        try { observer.onEvaluation(event); }
+        catch (Throwable ignored) { /* User callbacks cannot change inference or cancellation. */ }
+    }
 }

@@ -1,5 +1,6 @@
 package io.github.gudcks0305.jev.internal;
 
+import io.github.gudcks0305.jev.observation.EvaluationObserver;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,6 +17,7 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     private int maxRetries = 2;
     private HttpClient httpClient;
     private JevTransport transport;
+    private EvaluationObserver observer;
 
     protected abstract B self();
     public B apiKey(String apiKey) { this.apiKey = Objects.requireNonNull(apiKey, "apiKey"); return self(); }
@@ -29,6 +31,8 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     public B maxRetries(int maxRetries) { this.maxRetries = maxRetries; return self(); }
     public B httpClient(HttpClient httpClient) { this.httpClient = Objects.requireNonNull(httpClient, "httpClient"); return self(); }
     public B transport(JevTransport transport) { this.transport = Objects.requireNonNull(transport, "transport"); return self(); }
+    /** Opt-in completion metadata; no raw inputs or responses are passed to the observer. */
+    public B observer(EvaluationObserver observer) { this.observer = Objects.requireNonNull(observer, "observer"); return self(); }
 
     /** Whether the caller supplied a complete endpoint URL. */
     protected final boolean hasEndpointOverride() { return endpoint != null; }
@@ -55,7 +59,7 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
         if (maxRetries < 0 || maxRetries > 10) throw new IllegalArgumentException("maxRetries must be between 0 and 10");
         if (transport != null && httpClient != null) throw new IllegalArgumentException("Configure either transport or httpClient, not both");
         JevTransport selected = transport == null ? new HttpTransport(httpClient == null ? DefaultHttp.CLIENT : httpClient, timeout, maxRetries) : transport;
-        return new Config(key, modelId, target, selected, transport == null);
+        return new Config(key, modelId, target, selected, transport == null, observer);
     }
 
     private static void validateUrl(URI uri, String field, boolean allowQuery) {
@@ -73,12 +77,14 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
         final URI endpoint;
         final JevTransport transport;
         final boolean ownsTransport;
-        Config(String apiKey, String model, URI endpoint, JevTransport transport, boolean ownsTransport) {
+        final EvaluationObserver observer;
+        Config(String apiKey, String model, URI endpoint, JevTransport transport, boolean ownsTransport, EvaluationObserver observer) {
             this.apiKey = apiKey;
             this.model = model;
             this.endpoint = endpoint;
             this.transport = transport;
             this.ownsTransport = ownsTransport;
+            this.observer = observer;
         }
     }
     private static final class DefaultHttp {
