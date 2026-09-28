@@ -2,6 +2,29 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## Venice and AI/ML API compatibility (2026-09-28)
+
+The existing TypeSafe client can be configured with each provider's explicit
+API key, model, and complete Decisions endpoint. The focused
+`./mvnw -pl jev-typesafe -am test` run passed **57 tests**. Those tests cover
+the existing client and local HTTP contracts; they are not live inference on
+either new endpoint.
+
+- Venice: unauthenticated `GET /api/v1/models?type=decision` returned HTTP 200
+  with `jev-latest` in the model list. Unauthenticated POST
+  `/api/v1/decisions` returned HTTP 402 `Authentication required`. The model
+  listing does not establish authenticated access or successful inference.
+- AI/ML API: its [published Jev response example](https://docs.aimlapi.com/api-references/decision-models/typesafe/jev)
+  was parsed offline through the TypeSafe response parser. Noul `0.96`, Choice
+  `billing`, Score `1.3`, input tokens `403`, and raw
+  `meta.usage.credits_used=47` were retained. Unauthenticated POST
+  `/v1/decisions` returned HTTP 401. The example is a documentation fixture,
+  not a live response.
+
+No provider key was available for either endpoint; successful live Java
+inference remains **unverified**. See the [Venice](venice.md) and
+[AI/ML API](aimlapi.md) guides for configuration and contract limits.
+
 ## 0.2.0 records and Cloudflare (2026-09-21)
 
 `./mvnw clean verify -Prelease` passed **115 tests, 0 failures/errors/skips**.

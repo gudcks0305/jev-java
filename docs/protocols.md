@@ -1,6 +1,7 @@
 # Provider contracts
 
-Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26.
+Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26;
+Venice and AI/ML API guidance checked on 2026-09-28.
 This SDK is unofficial.
 
 ## TypeSafe direct
@@ -18,6 +19,12 @@ separate Java wire format. It supplies `TYPESAFE_API_KEY` and
 `TYPESAFE_BASE_URL` in supported compute contexts; the Java client requires an
 explicit `baseUrl` / `jev.base-url` to use that route. See the
 [Netlify configuration guide](netlify-ai-gateway.md) for runtime limits.
+
+Venice and AI/ML API also document TypeSafe-shaped Jev Decisions requests.
+Their complete endpoints and model IDs differ from TypeSafe direct access;
+use the existing TypeSafe client with an explicit key, model, and `endpoint`.
+See the separate [Venice](venice.md) and [AI/ML API](aimlapi.md) guides for
+configuration, provider-specific contract limits, and validation evidence.
 
 ## Vercel AI Gateway
 
