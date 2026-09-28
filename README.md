@@ -391,6 +391,13 @@ to the existing client; it already reads `TYPESAFE_API_KEY`. See the
 [Netlify AI Gateway configuration guide](docs/netlify-ai-gateway.md) for Java
 and Spring examples, runtime limits, and validation status.
 
+Venice and AI/ML API document TypeSafe-shaped Jev Decisions endpoints. Use
+the existing TypeSafe client with an explicit key, model, and complete
+`endpoint`. See the [Venice guide](docs/venice.md) and
+[AI/ML API guide](docs/aimlapi.md) for Java and Spring examples, contract
+limits, and verification status. Successful live inference through either
+endpoint has not been verified.
+
 TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter and Cloudflare use official contracts and local HTTP tests; live inference has not been verified because their credentials were unavailable. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
 The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The seven Java examples in this README were also compiled with `--release 17`.
