@@ -2,6 +2,43 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## Compatible services and decision models (2026-10-01)
+
+`./mvnw -pl jev-typesafe -am test` passed **66 tests**. The full
+`./mvnw verify` passed **124 tests, 0 failures/errors/skips**, including nine
+new compatibility test invocations. Local runtime: OpenJDK 25.0.2, Java
+source/target release 17, Spring Boot 3.5.16. These are local results; no new
+remote CI run or release is claimed.
+
+The [DigitalOcean](digitalocean.md), [OpenCode Zen](opencode-zen.md),
+[LLM Gateway](llm-gateway.md), and [Eden AI](edenai.md) guides were checked
+against their linked official documentation. They configure the existing
+TypeSafe client with a provider key, model, and full endpoint. These four
+routes have documentation review and Java example compilation only; no
+provider-specific response fixture or successful live inference was tested.
+
+[Solar Decide](solar-decide.md) and [Liquid d1](liquid-d1.md) are different
+models with a TypeSafe-shaped API. Credential-free loopback HTTP tests check:
+
+- Solar: its published three-primitive response and 27-option overflow error.
+- Liquid: published answer fields in a synthetic combined response envelope,
+  and a complete published Noul response including zero output tokens.
+- Vercel's [public TypeSafe-compatible route](vercel-ai-gateway.md): a synthetic
+  native response, separate from the existing v4 adapter tests.
+
+Fixture provenance and adaptations are listed in the
+[test resource notes](../jev-typesafe/src/test/resources/compatible-providers/README.md).
+Assertions preserve the provider examples' numeric values, including rounding;
+they do not recompute scores or calibrate confidence. Mutated test fixtures
+check missing optional metadata and rejection of missing required distributions.
+Those mutations do not imply that a provider emits those responses.
+
+The seven new guides' Java blocks compile with `javac --release 17` when
+wrapped in a `main` method using the project's core and TypeSafe classes.
+The examples were not executed against providers. No credentials or billable
+requests were used for this change. Successful live Java inference through
+all seven routes remains **unverified**.
+
 ## Venice and AI/ML API compatibility (2026-09-28)
 
 The existing TypeSafe client can be configured with each provider's explicit

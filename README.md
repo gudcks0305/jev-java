@@ -32,7 +32,11 @@ For direct TypeSafe access:
 </dependency>
 ```
 
-Use `jev-openrouter` for OpenRouter, `jev-vercel` for Vercel AI Gateway, or `jev-cloudflare` for Cloudflare. Each provider module brings in `jev-core`; do not add it separately.
+Use `jev-openrouter` for OpenRouter or `jev-cloudflare` for Cloudflare. For
+Vercel AI Gateway, use `jev-typesafe` with its documented
+[TypeSafe-compatible endpoint](docs/vercel-ai-gateway.md), or `jev-vercel`
+for the existing evaluation-model v4 adapter. Each provider module brings in
+`jev-core`; do not add it separately.
 
 Gradle Kotlin DSL:
 
@@ -165,7 +169,12 @@ Enum labels use `Enum.name()`. Add enum descriptions with `withDescriptions(Map.
 
 `evaluateAsync(state, questions...)` returns a cancellable `CompletableFuture<Evaluation>`. Reuse clients and close them when the application stops. Use blocking `evaluate()` only from blocking code.
 
-To use Vercel, construct `VercelJevClient.builder().build()` from `io.github.gudcks0305.jev.vercel`. Default models are `jev-latest` for direct TypeSafe and `typesafe-ai/jev` for Vercel; override either with `.model("...")`.
+For Vercel's evaluation-model v4 protocol, construct
+`VercelJevClient.builder().build()` from `io.github.gudcks0305.jev.vercel`.
+Default models are `jev-latest` for direct TypeSafe and `typesafe-ai/jev` for
+that Vercel adapter; override either with `.model("...")`. Vercel also offers
+a public TypeSafe-compatible route usable with `TypeSafeJevClient`; see the
+[Vercel guide](docs/vercel-ai-gateway.md) for its explicit key, model, and URL.
 
 ## OpenRouter and custom endpoints
 
@@ -397,6 +406,25 @@ the existing TypeSafe client with an explicit key, model, and complete
 [AI/ML API guide](docs/aimlapi.md) for Java and Spring examples, contract
 limits, and verification status. Successful live inference through either
 endpoint has not been verified.
+
+Additional services publish TypeSafe-shaped APIs. The following guides use
+`jev-typesafe` and explicit credentials, model IDs, and complete endpoints;
+they do not add provider modules or Spring `jev.provider` values.
+
+| Service | Model | Guide |
+| --- | --- | --- |
+| DigitalOcean | Jev | [Configuration and account limits](docs/digitalocean.md) |
+| OpenCode Zen | Jev | [Paid and temporary free routes](docs/opencode-zen.md) |
+| LLM Gateway | Jev | [System One endpoint](docs/llm-gateway.md) |
+| Eden AI | Jev | [Alpha Decisions endpoint](docs/edenai.md) |
+| Upstage | Solar Decide (a different model, beta) | [Contract and limits](docs/solar-decide.md) |
+| Liquid AI | d1 (a different model) | [Contract and limits](docs/liquid-d1.md) |
+
+These are documented compatibility routes, not verified live Java inference.
+Solar Decide and d1 share question shapes with Jev but are independent models:
+evaluate their judgments and thresholds separately. See [validation evidence](docs/validation.md)
+for the exact offline fixture coverage. Vercel's [public TypeSafe-compatible
+route](docs/vercel-ai-gateway.md) is documented separately from its v4 adapter.
 
 TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter and Cloudflare use official contracts and local HTTP tests; live inference has not been verified because their credentials were unavailable. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
