@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Opt-in evaluation observer with elapsed time, requested/returned model, token
+  usage, outcome, and bounded error metadata; no request or response payloads.
+- Labeled Noul evaluation example with offline synthetic data, explicit live
+  mode, threshold coverage/accuracy summaries, and failure accounting.
+
 ## 0.2.0 — 2026-09-21
 
 - First-class annotated Java record outputs in `jev-core`: `JevSchema<T>` and `TypedEvaluation<T>`.
