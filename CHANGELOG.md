@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 — 2026-10-07
+
+- OpenAI Decisions adapter (`jev-openai`, `OpenAiJevClient`) with native
+  text/image inputs, typed string/boolean choices, score descriptions, optional
+  question names, per-request safety identifiers, and partial refusal results.
+- Existing text-based Noul/Choice/Score and compatible record schemas use the
+  same client; generic evaluations fail with `JevException.Kind.REFUSAL` if any
+  question is refused. Exhaustive switches over the error enum need this case.
+- Spring `jev.provider=openai`, typed client injection, and lazy
+  `ReactorOpenAiClient` with cancellation propagation and caller-owned delegates.
+- Shared async lifecycle retains transport ownership, retries, deadlines and
+  cancellation across native and generic calls.
+- Native DTOs preserve value types, immutable collections, complete usage and
+  raw metadata. Image inputs remain inline; the SDK never fetches external images.
+- Manual Central workflow gains an explicit `publish` operation for validated
+  release tags. Default `verify` and manual `upload` behavior remain unchanged.
+
+See the [OpenAI guide](docs/openai-decisions.md) and
+[validation notes](docs/validation.md) for supported surfaces and evidence.
+
 ## 0.2.0 — 2026-09-21
 
 - First-class annotated Java record outputs in `jev-core`: `JevSchema<T>` and `TypedEvaluation<T>`.

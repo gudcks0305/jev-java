@@ -2,6 +2,7 @@ package io.github.gudcks0305.jev.autoconfigure;
 
 import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
+import io.github.gudcks0305.jev.openai.OpenAiJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
@@ -17,7 +18,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Condition;
+import org.springframework.context.annotation.ConditionContext;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @AutoConfiguration
@@ -25,17 +30,20 @@ import org.springframework.web.reactive.function.client.WebClient;
 @ConditionalOnProperty(prefix = "jev", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(JevProperties.class)
 @Import({JevAutoConfiguration.WebClientTransportConfiguration.class,
-        JevAutoConfiguration.ReactorClientConfiguration.class})
+        JevAutoConfiguration.ReactorClientConfiguration.class,
+        JevAutoConfiguration.OpenAiClientConfiguration.class})
 public class JevAutoConfiguration {
 
     @Bean(destroyMethod = "close")
     @ConditionalOnMissingBean(JevClient.class)
+    @Conditional(NonOpenAiProviderCondition.class)
     JevClient jevClient(JevProperties properties, ObjectProvider<JevTransport> transports) {
         JevTransport transport = resolveTransport(properties, transports);
         return switch (properties.getProvider()) {
             case TYPESAFE -> typeSafeClient(properties, transport);
             case VERCEL -> vercelClient(properties, transport);
             case OPENROUTER -> openRouterClient(properties, transport);
+            case OPENAI -> throw new IllegalStateException("OpenAI client is configured separately");
             case CLOUDFLARE -> cloudflareClient(properties, transport);
         };
     }
@@ -146,6 +154,43 @@ public class JevAutoConfiguration {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    static class NonOpenAiProviderCondition implements Condition {
+        @Override
+        public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+            return !"openai".equalsIgnoreCase(context.getEnvironment().getProperty("jev.provider", "typesafe"));
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(OpenAiJevClient.class)
+    @ConditionalOnProperty(prefix = "jev", name = "provider", havingValue = "openai")
+    static class OpenAiClientConfiguration {
+        @Bean(destroyMethod = "close")
+        @ConditionalOnMissingBean(JevClient.class)
+        OpenAiJevClient openAiJevClient(JevProperties properties, ObjectProvider<JevTransport> transports) {
+            JevTransport transport = resolveTransport(properties, transports);
+            var builder = OpenAiJevClient.builder()
+                    .timeout(properties.getTimeout())
+                    .maxRetries(properties.getMaxRetries());
+            if (transport != null) {
+                builder.transport(transport);
+            }
+            if (hasText(properties.getApiKey())) {
+                builder.apiKey(properties.getApiKey());
+            }
+            if (hasText(properties.getModel())) {
+                builder.model(properties.getModel());
+            }
+            if (properties.getBaseUrl() != null) {
+                builder.baseUrl(properties.getBaseUrl());
+            }
+            if (properties.getEndpoint() != null) {
+                builder.endpoint(properties.getEndpoint());
+            }
+            return builder.build();
+        }
     }
 
     @Configuration(proxyBeanMethods = false)

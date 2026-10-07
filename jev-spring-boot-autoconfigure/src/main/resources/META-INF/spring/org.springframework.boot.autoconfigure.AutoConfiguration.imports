@@ -1,1 +1,2 @@
 io.github.gudcks0305.jev.autoconfigure.JevAutoConfiguration
+io.github.gudcks0305.jev.autoconfigure.OpenAiReactorAutoConfiguration

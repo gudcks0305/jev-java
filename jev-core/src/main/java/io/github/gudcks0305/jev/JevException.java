@@ -2,7 +2,7 @@ package io.github.gudcks0305.jev;
 
 /** A service, transport, or response-contract failure. Messages never include request bodies or keys. */
 public class JevException extends RuntimeException {
-    public enum Kind { AUTHENTICATION, VALIDATION, RATE_LIMIT, SERVER, HTTP, CONNECTION, TIMEOUT, PROTOCOL, CLOSED }
+    public enum Kind { AUTHENTICATION, VALIDATION, RATE_LIMIT, SERVER, HTTP, CONNECTION, TIMEOUT, PROTOCOL, REFUSAL, CLOSED }
     private final Kind kind;
     private final int statusCode;
 
