@@ -21,7 +21,7 @@
     <central.auto-publish>false</central.auto-publish>
     <central.wait-until>validated</central.wait-until>
     <spring-boot.version>3.5.16</spring-boot.version>
-    <jackson.version>2.21.4</jackson.version>
+    <jackson.version>2.22.3</jackson.version>
     <junit.version>5.12.2</junit.version>
   </properties>
   <dependencyManagement><dependencies>
