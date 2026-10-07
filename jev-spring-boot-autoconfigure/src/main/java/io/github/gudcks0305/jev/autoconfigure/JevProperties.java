@@ -21,7 +21,7 @@ public class JevProperties {
      * Provider API key. When omitted, the provider builder reads {@code TYPESAFE_API_KEY}
      * for TypeSafe, {@code AI_GATEWAY_API_KEY} for Vercel, or
      * {@code OPENROUTER_API_KEY} for OpenRouter, or {@code CLOUDFLARE_API_TOKEN}
-     * for Cloudflare.
+     * for Cloudflare, or {@code OPENAI_API_KEY} for OpenAI.
      */
     private String apiKey;
 
@@ -142,6 +142,7 @@ public class JevProperties {
         TYPESAFE,
         VERCEL,
         OPENROUTER,
+        OPENAI,
         CLOUDFLARE
     }
 

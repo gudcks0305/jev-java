@@ -12,6 +12,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class AbstractJevClient implements JevClient {
     private final JevTransport transport;
@@ -21,7 +23,7 @@ public abstract class AbstractJevClient implements JevClient {
     private final Map<String, String> headers;
     private final WireFormat format;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final Set<CompletableFuture<Evaluation>> calls = ConcurrentHashMap.newKeySet();
+    private final Set<CompletableFuture<?>> calls = ConcurrentHashMap.newKeySet();
 
     protected AbstractJevClient(ClientBuilder.Config config, boolean gateway) {
         this(config, gateway ? WireFormat.VERCEL : WireFormat.TYPESAFE);
@@ -37,7 +39,7 @@ public abstract class AbstractJevClient implements JevClient {
         values.put("Authorization", "Bearer " + config.apiKey);
         values.put("Content-Type", "application/json");
         values.put("Accept", "application/json");
-        values.put("User-Agent", "jev-java/0.2.0");
+        values.put("User-Agent", "jev-java/0.3.0");
         if (format == WireFormat.VERCEL) {
             values.put("ai-gateway-protocol-version", "0.0.1");
             values.put("ai-gateway-auth-method", "api-key");
@@ -56,8 +58,21 @@ public abstract class AbstractJevClient implements JevClient {
             Objects.requireNonNull(question, "Question cannot be null");
             if (indexed.putIfAbsent(question.id(), question) != null) throw new IllegalArgumentException("Duplicate question id");
         }
-        JsonNode body = EvaluationCodec.request(state, indexed, model, format);
-        CompletableFuture<Evaluation> result = new CompletableFuture<>();
+        return executeAsync(() -> EvaluationCodec.request(state, indexed, model, format),
+                response -> EvaluationCodec.response(response, indexed, model, format));
+    }
+
+    /** Configured model for provider-specific request encoders. */
+    protected final String configuredModel() { return model; }
+
+    /** Shared lifecycle for typed provider requests; cancellation reaches the transport. */
+    protected final <T> CompletableFuture<T> executeAsync(
+            Supplier<? extends JsonNode> encoder, Function<JsonNode, T> decoder) {
+        if (closed.get()) return CompletableFuture.failedFuture(closedError());
+        Objects.requireNonNull(encoder, "encoder");
+        Objects.requireNonNull(decoder, "decoder");
+        JsonNode body = encoder.get();
+        CompletableFuture<T> result = new CompletableFuture<>();
         AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
         calls.add(result);
         result.whenComplete((value, failure) -> {
@@ -75,7 +90,7 @@ public abstract class AbstractJevClient implements JevClient {
                 if (result.isDone()) return;
                 if (failure != null) result.completeExceptionally(failure);
                 else {
-                    try { result.complete(EvaluationCodec.response(response, indexed, model, format)); }
+                    try { result.complete(decoder.apply(response)); }
                     catch (JevException ex) { result.completeExceptionally(ex); }
                     catch (RuntimeException ex) { result.completeExceptionally(new JevException(JevException.Kind.PROTOCOL, "Invalid evaluation response")); }
                 }

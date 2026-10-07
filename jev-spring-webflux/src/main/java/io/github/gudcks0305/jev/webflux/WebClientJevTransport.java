@@ -189,6 +189,8 @@ public final class WebClientJevTransport implements JevTransport {
                     JevException.Kind.TIMEOUT, "HTTP request timed out");
             case PROTOCOL -> new JevException(
                     JevException.Kind.PROTOCOL, "HTTP response was not valid JSON");
+            case REFUSAL -> new JevException(
+                    JevException.Kind.REFUSAL, "Evaluation was refused");
             case CLOSED -> closedException();
         };
     }

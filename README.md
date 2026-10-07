@@ -5,9 +5,12 @@
 
 Unofficial Java SDK for turning application state into typed Jev judgments through TypeSafe, OpenRouter, Vercel AI Gateway, or Cloudflare. Define `Choice`, `Noul`, and `Score` questions in Java, submit them together, and receive typed results instead of parsing generated text.
 
-Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI or Vercel.
+Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI, Vercel, or OpenAI.
 
-**Version 0.2.0 adds declarative Java record outputs and Cloudflare.** Add a dependency to get started; no local source installation or custom Maven repository is required.
+**Version 0.3.0 adds OpenAI Decisions**: text/image inputs, typed string/boolean
+choices, scoring, per-question refusals and request-level safety identifiers.
+The existing Jev question and record interfaces remain available; see the
+[OpenAI guide](docs/openai-decisions.md) for both APIs and their boundaries.
 
 ## Installation
 
@@ -18,6 +21,7 @@ Choose the module that matches your application:
 | `jev-typesafe` | Plain Java client for TypeSafe's public Jev API |
 | `jev-cloudflare` | Cloudflare AI access to `typesafe/jev` |
 | `jev-openrouter` | Plain Java client for OpenRouter's alpha Decisions API |
+| `jev-openai` | OpenAI Decisions: native text/images and typed Jev compatibility |
 | `jev-vercel` | Plain Java adapter for Vercel AI Gateway's experimental evaluation protocol |
 | `jev-spring-boot-starter` | Spring Boot auto-configuration with the default JDK transport |
 | `jev-spring-webflux` | Optional WebClient transport and lazy Reactor facade |
@@ -28,7 +32,7 @@ For direct TypeSafe access:
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-typesafe</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -44,7 +48,7 @@ Gradle Kotlin DSL:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("io.github.gudcks0305:jev-typesafe:0.2.0")
+    implementation("io.github.gudcks0305:jev-typesafe:0.3.0")
 }
 ```
 
@@ -245,19 +249,19 @@ sufficient AI credits. [Official Cloudflare contract](https://developers.cloudfl
 
 ## Spring Boot
 
-The starter includes all four provider adapters and defaults to TypeSafe over JDK `HttpClient`:
+The starter includes five provider adapters and defaults to TypeSafe over JDK `HttpClient`:
 
 ```xml
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-boot-starter</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
 ```yaml
 jev:
-  provider: typesafe # or openrouter / vercel / cloudflare
+  provider: typesafe # or openrouter / vercel / cloudflare / openai
   transport: jdk
   timeout: 30s
   max-retries: 2
@@ -273,7 +277,7 @@ The base starter does not pull in WebFlux. Add the optional module and select it
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-webflux</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
@@ -374,7 +378,7 @@ public final class JevClients implements AutoCloseable {
 | Property | Default | Meaning |
 | --- | --- | --- |
 | `jev.enabled` | `true` | Enable auto-configuration |
-| `jev.provider` | `typesafe` | `typesafe`, `openrouter`, `vercel`, or `cloudflare` |
+| `jev.provider` | `typesafe` | `typesafe`, `openrouter`, `vercel`, `cloudflare`, or `openai` |
 | `jev.transport` | `jdk` | `jdk` or `webclient` |
 | `jev.api-key` | provider environment variable | Explicit key override |
 | `jev.model` | provider default | Model ID |
@@ -387,6 +391,10 @@ public final class JevClients implements AutoCloseable {
 ## Errors and response semantics
 
 `JevException.kind()` separates authentication, validation, rate limiting, server/HTTP, connection, timeout, protocol, and closed-client failures. `statusCode()` is the HTTP status, or 0 when none is available. Error messages exclude response bodies and credentials by default.
+
+The OpenAI compatibility adapter adds `REFUSAL`: one refused question fails the
+whole evaluation without returning partial answers or substituting a value.
+Its text-only limits also apply to record schemas; `@JevLabels` is unsupported.
 
 Only explicit **429, 529, 502, 503, and 504** responses retry. Connection failures and ambiguous timeouts do not automatically retry because the service may already have processed and billed the request. There is no automatic provider fallback.
 
@@ -444,7 +452,7 @@ cd jev-java
   -Dexec.args=typesafe
 ```
 
-Use `RecordExample`, `WebClientExample`, or `SpringBootExample` for those integration paths. Passing `openrouter`, `vercel`, or `cloudflare` selects that provider. A Vercel `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
+Use `RecordExample`, `WebClientExample`, or `SpringBootExample` for those integration paths. Passing `openrouter`, `vercel`, or `cloudflare` selects that provider. `Quickstart`, `RecordExample`, and `WebClientExample` also accept `openai` with `OPENAI_API_KEY`. A Vercel `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
 
 ## Project links
 
