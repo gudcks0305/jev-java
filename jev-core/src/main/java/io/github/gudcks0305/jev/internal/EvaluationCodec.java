@@ -17,6 +17,7 @@ public final class EvaluationCodec {
     }
 
     public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, WireFormat format) {
+        if (format == WireFormat.OPENAI) return OpenAiDecisionCodec.request(state, questions, model);
         boolean gateway = format == WireFormat.VERCEL;
         boolean cloudflare = format == WireFormat.CLOUDFLARE;
         ObjectNode body = JsonSupport.object();
@@ -55,6 +56,7 @@ public final class EvaluationCodec {
     }
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, WireFormat format) {
+        if (format == WireFormat.OPENAI) return OpenAiDecisionCodec.response(body, questions);
         boolean gateway = format == WireFormat.VERCEL;
         boolean optionalProbabilities = format == WireFormat.VERCEL || format == WireFormat.OPENROUTER;
         require(body != null && body.isObject(), "Expected an object response");

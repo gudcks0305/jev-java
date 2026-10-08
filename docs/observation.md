@@ -1,11 +1,17 @@
 # Evaluation observation
 
 This feature is available in the source branch and is not part of the published
-0.2.0 artifacts. Build from source to use it before the next release.
+0.3.0 artifacts. Build from source to use it before the next release.
 
 Attach an observer to any provider builder to receive metadata when a logical
 evaluation completes. The hook has no logging backend or metrics dependency.
 Nothing is logged unless your application registers a callback.
+
+The hook observes `evaluate` and `evaluateAsync`, including OpenAI's compatible
+evaluation path. Native OpenAI `decide` and `decideAsync` do not emit
+`EvaluationEvent`: they return `DecisionResult` with separate `DecisionUsage`
+metadata and may override the model per request. Their cancellation, retries,
+deadlines, and client-close behavior still use the same shared lifecycle.
 
 ```java
 import io.github.gudcks0305.jev.NoulQuestion;

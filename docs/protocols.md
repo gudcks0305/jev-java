@@ -1,8 +1,28 @@
 # Provider contracts
 
 Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26;
-Venice and AI/ML API guidance checked on 2026-09-28.
+Venice and AI/ML API guidance checked on 2026-09-28; additional compatible
+services and Vercel public API guidance checked on 2026-10-01.
 This SDK is unofficial.
+
+## OpenAI Decisions (since 0.3.0, checked 2026-10-07)
+
+`jev-openai` implements OpenAI's beta `POST https://api.openai.com/v1/decisions`
+with Bearer `OPENAI_API_KEY` and default model `gpt-6-luna`, independent of Jev.
+The native `decide` API supports string or user-message input with text/inline
+images, string/boolean choices, score labels/descriptions, optional question names,
+request-level safety identifiers, and ordered results with individual refusals.
+Usage includes all documented token counters; unknown metadata stays in raw JSON.
+
+The inherited Jev `evaluate` API maps basic Noul to predicate, string/enum Choice
+and string-level Score to their existing Java types. It accepts text only and
+fails the whole evaluation with `REFUSAL` on a declined question. Existing record
+mapping remains available except structured `@JevLabels` questions.
+
+Changing a TypeSafe/OpenRouter endpoint cannot change its wire format. See the
+[OpenAI guide](openai-decisions.md) for native/compatibility API examples, Spring
+setup, and official contracts; [validation](validation.md) separates offline
+fixtures from actual provider calls.
 
 ## TypeSafe direct
 
@@ -26,7 +46,43 @@ use the existing TypeSafe client with an explicit key, model, and `endpoint`.
 See the separate [Venice](venice.md) and [AI/ML API](aimlapi.md) guides for
 configuration, provider-specific contract limits, and validation evidence.
 
+### Additional compatible services (checked 2026-10-01)
+
+These routes use `TypeSafeJevClient` / Spring `jev.provider=typesafe` with an
+explicit provider key, model, and full `endpoint`. No new provider selector is
+introduced. Documentation compatibility and offline response parsing do not
+establish successful live inference; see [validation](validation.md).
+
+| Service | Model ID used in guide | Full endpoint / contract guide |
+| --- | --- | --- |
+| DigitalOcean | `typesafe-jev-1.13.0` | [DigitalOcean](digitalocean.md): `https://inference.do-ai.run/v1/systemone` |
+| OpenCode Zen | `jev-1.13` | [OpenCode Zen](opencode-zen.md): `https://opencode.ai/zen/v1/systemone` |
+| LLM Gateway | `typesafe/jev-1.13.0` | [LLM Gateway](llm-gateway.md): `https://api.llmgateway.io/v1/systemone` |
+| Eden AI | `typesafe/jev-latest` | [Eden AI](edenai.md): `https://api.edenai.run/v3/alpha/decisions` |
+| Upstage | `solar-decide` | [Solar Decide](solar-decide.md): `https://api.upstage.ai/v1/systemone` |
+| Liquid AI | `d1:free` | [Liquid d1](liquid-d1.md): `https://api.liquid.ai/decisions/v1/systemone` |
+
+Solar Decide and d1 are independent decision models, not Jev hosting routes.
+Shared field names do not establish equivalent calibration or quality. The
+TypeSafe decoder requires complete Choice/Score distributions; it retains
+native numeric values and does not synthesize missing confidence or token
+counts. Provider-specific limits remain the application's responsibility.
+
 ## Vercel AI Gateway
+
+Vercel now documents two public HTTP formats:
+
+- TypeSafe-compatible `POST /typesafe/v1/systemone`: native `noul` and
+  snake_case usage. Configure the existing TypeSafe client with a Gateway key
+  and model `typesafe-ai/jev`; see the [Vercel guide](vercel-ai-gateway.md).
+- Evaluation `POST /v1/evaluate`: `boolean` / `probability` and the model in
+  the request body. This SDK does not implement that HTTP route directly.
+
+Sources: [TypeSafe-compatible API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe),
+[public evaluation API](https://vercel.com/docs/ai-gateway/modalities/evaluation).
+
+The existing `VercelJevClient` / Spring `jev.provider=vercel` still uses the
+following AI SDK evaluation-model v4 protocol:
 
 - `POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`
 - `Authorization: Bearer <AI_GATEWAY_API_KEY>`
@@ -36,7 +92,11 @@ configuration, provider-specific contract limits, and validation evidence.
 - `ai-model-id: typesafe-ai/jev`
 - Body: `state`, named `questions`; the model travels in a header.
 
-This is the Vercel AI SDK evaluation protocol. It is **not** Chat Completions, Responses, or a documented stable Java REST API. Protocol changes can require an adapter update. A Vercel key may be valid while the account cannot make requests (for example, payment verification).
+This adapter targets the Vercel AI SDK evaluation protocol, not the public
+`/v1/evaluate` route, Chat Completions, or Responses. Changing only its endpoint
+does not change its headers or body format. Protocol changes can require an
+adapter update. A Vercel key may be valid while the account cannot make
+requests (for example, payment verification).
 
 Reference implementation pinned to Vercel AI commit `20dd00abba618d5a516e0fee40ccd3e18a2bd1fb`:
 
@@ -89,4 +149,4 @@ Only an AI Gateway management permission is insufficient. Live Cloudflare infere
 
 ## URL configuration
 
-`baseUrl` is an origin with an optional path prefix. The adapter appends its full endpoint suffix (`v1/systemone`, `v4/ai/evaluation-model`, or `api/alpha/decisions`). Do not include that suffix twice. Since 0.1.1, `endpoint(URI)` / Spring `jev.endpoint` accepts the complete URL and preserves its path/query without appending anything. The two options are mutually exclusive. The selected client still determines authentication and wire format. User-info and fragments are rejected; `baseUrl` also rejects queries. Use HTTPS for real API keys; HTTP exists for local servers/proxies.
+`baseUrl` is an origin with an optional path prefix. The adapter appends its full endpoint suffix (for example `v1/systemone`, `v4/ai/evaluation-model`, `api/alpha/decisions`, or OpenAI's `v1/decisions`). Do not include that suffix twice. Since 0.1.1, `endpoint(URI)` / Spring `jev.endpoint` accepts the complete URL and preserves its path/query without appending anything. The two options are mutually exclusive. The selected client still determines authentication and wire format. User-info and fragments are rejected; `baseUrl` also rejects queries. Use HTTPS for real API keys; HTTP exists for local servers/proxies.

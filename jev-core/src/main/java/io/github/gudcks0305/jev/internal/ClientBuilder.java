@@ -31,7 +31,7 @@ public abstract class ClientBuilder<B extends ClientBuilder<B>> {
     public B maxRetries(int maxRetries) { this.maxRetries = maxRetries; return self(); }
     public B httpClient(HttpClient httpClient) { this.httpClient = Objects.requireNonNull(httpClient, "httpClient"); return self(); }
     public B transport(JevTransport transport) { this.transport = Objects.requireNonNull(transport, "transport"); return self(); }
-    /** Opt-in completion metadata; no raw inputs or responses are passed to the observer. */
+    /** Opt-in evaluate/evaluateAsync metadata; excludes native provider decide calls and raw payloads. */
     public B observer(EvaluationObserver observer) { this.observer = Objects.requireNonNull(observer, "observer"); return self(); }
 
     /** Whether the caller supplied a complete endpoint URL. */

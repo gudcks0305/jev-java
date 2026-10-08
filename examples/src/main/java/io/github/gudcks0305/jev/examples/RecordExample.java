@@ -2,6 +2,7 @@ package io.github.gudcks0305.jev.examples;
 
 import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
+import io.github.gudcks0305.jev.openai.OpenAiJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.schema.JevBoolean;
 import io.github.gudcks0305.jev.schema.JevChoice;
@@ -33,6 +34,7 @@ public final class RecordExample {
             case "openrouter" -> OpenRouterJevClient.builder().build();
             case "vercel" -> VercelJevClient.builder().build();
             case "cloudflare" -> CloudflareJevClient.builder().build();
+            case "openai" -> OpenAiJevClient.builder().build();
             default -> throw new IllegalArgumentException("Unknown provider");
         }) {
             JevSchema<Triage> schema = JevSchema.of(Triage.class);

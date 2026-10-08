@@ -17,14 +17,15 @@ Configure these repository Actions secrets:
 
 The Portal account must have verified access to `io.github.gudcks0305`. Publish
 the corresponding GPG public key as described in the [Sonatype signing guide](https://central.sonatype.org/publish/requirements/gpg/).
-The upload workflow checks that the public key is retrievable by fingerprint
+The deployment workflow checks that the public key is retrievable by fingerprint
 from `keys.openpgp.org` before deployment. Its public bundle is retained as an
 Actions artifact for seven days so validation failures can be investigated.
 Do not put any credential values in the workflow, POM, repository, or logs.
 
 `actions/setup-java` writes Maven settings that reference the token environment
-variables. Maven GPG reads its passphrase from `MAVEN_GPG_PASSPHRASE`. The upload
-operation checks that all four secrets exist before signing or contacting Central.
+variables. Maven GPG reads its passphrase from `MAVEN_GPG_PASSPHRASE`. Both upload
+and publish operations check that all four secrets exist before signing or
+contacting Central.
 
 ## Operations
 
@@ -34,7 +35,31 @@ operation checks that all four secrets exist before signing or contacting Centra
 3. After the namespace and signing key are ready, choose **upload**. It signs and
    uploads the parent POM and all SDK modules, then waits for Portal validation.
 4. Inspect the validated deployment in [Central Portal](https://central.sonatype.com/publishing)
-   and publish it there when ready. `autoPublish` is deliberately `false`.
+   and publish it there when ready. `autoPublish` defaults to `false`.
+
+### Explicit public publication
+
+The separate **publish** operation signs, uploads, validates, and publicly
+publishes the version to Maven Central, then waits until publication completes.
+This is an explicit manual workflow dispatch. Published versions cannot be
+replaced or removed.
+
+Before dispatching publish, verify that all CI matrix checks and CodeQL have
+passed for the release commit. Follow the release process in `CONTRIBUTING.md`
+and wait for its public GitHub Release. Dispatch from that immutable `vX.Y.Z`
+tag, not a branch. The workflow rejects branch refs, non-version tags, a POM
+version mismatch, and tags without an existing public GitHub Release before
+reading Central credentials or importing the signing key.
+
+For example, after the `v0.3.0` release is ready:
+
+```sh
+gh workflow run central.yml --ref v0.3.0 -f operation=publish
+```
+
+Publish overrides `central.auto-publish=true` and
+`central.wait-until=published`; verify and upload retain the defaults
+`false` and `validated`. Choosing upload still requires Portal publication.
 
 Upload does not automatically publish. Once published, a version cannot be
 replaced or removed. Use a new version for future changes. The existing `v0.1.0`

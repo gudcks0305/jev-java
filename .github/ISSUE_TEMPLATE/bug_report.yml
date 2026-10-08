@@ -23,6 +23,7 @@ body:
         - jev-vercel
         - jev-openrouter
         - jev-cloudflare
+        - jev-openai
         - jev-spring-webflux
         - jev-spring-boot-autoconfigure
         - jev-spring-boot-starter

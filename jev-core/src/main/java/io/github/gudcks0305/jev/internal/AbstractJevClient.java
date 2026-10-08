@@ -19,6 +19,9 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public abstract class AbstractJevClient implements JevClient {
     private final JevTransport transport;
@@ -29,7 +32,7 @@ public abstract class AbstractJevClient implements JevClient {
     private final WireFormat format;
     private final EvaluationObserver observer;
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final Set<CompletableFuture<Evaluation>> calls = ConcurrentHashMap.newKeySet();
+    private final Set<CompletableFuture<?>> calls = ConcurrentHashMap.newKeySet();
 
     protected AbstractJevClient(ClientBuilder.Config config, boolean gateway) {
         this(config, gateway ? WireFormat.VERCEL : WireFormat.TYPESAFE);
@@ -46,7 +49,7 @@ public abstract class AbstractJevClient implements JevClient {
         values.put("Authorization", "Bearer " + config.apiKey);
         values.put("Content-Type", "application/json");
         values.put("Accept", "application/json");
-        values.put("User-Agent", "jev-java/0.2.0");
+        values.put("User-Agent", "jev-java/0.3.0");
         if (format == WireFormat.VERCEL) {
             values.put("ai-gateway-protocol-version", "0.0.1");
             values.put("ai-gateway-auth-method", "api-key");
@@ -67,15 +70,37 @@ public abstract class AbstractJevClient implements JevClient {
         }
         JsonNode body = EvaluationCodec.request(state, indexed, model, format);
         long startedNanos = System.nanoTime();
-        CompletableFuture<Evaluation> result = new CompletableFuture<>();
-        AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
         AtomicReference<String> returnedModel = observer == null ? null : new AtomicReference<>();
+        return executeAsync(body, response -> {
+            Evaluation evaluation = EvaluationCodec.response(response, indexed, model, format);
+            if (returnedModel != null) returnedModel.set(providerModel(response));
+            return evaluation;
+        }, (evaluation, failure) -> notifyObserver(startedNanos, indexed.size(),
+                returnedModel == null ? null : returnedModel.get(), evaluation, failure));
+    }
+
+    /** Configured model for provider-specific request encoders. */
+    protected final String configuredModel() { return model; }
+
+    /** Shared lifecycle for typed provider requests; cancellation reaches the transport. */
+    protected final <T> CompletableFuture<T> executeAsync(
+            Supplier<? extends JsonNode> encoder, Function<JsonNode, T> decoder) {
+        if (closed.get()) return CompletableFuture.failedFuture(closedError());
+        Objects.requireNonNull(encoder, "encoder");
+        Objects.requireNonNull(decoder, "decoder");
+        return executeAsync(encoder.get(), decoder, null);
+    }
+
+    private <T> CompletableFuture<T> executeAsync(JsonNode body, Function<JsonNode, T> decoder,
+                                                 BiConsumer<T, Throwable> onComplete) {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
         calls.add(result);
         result.whenComplete((value, failure) -> {
             calls.remove(result);
             CompletableFuture<JsonNode> pending = source.get();
             if (pending != null && !pending.isDone()) pending.cancel(true);
-            notifyObserver(startedNanos, indexed.size(), returnedModel == null ? null : returnedModel.get(), value, failure);
+            if (onComplete != null) onComplete.accept(value, failure);
         });
         if (closed.get()) result.completeExceptionally(closedError());
         if (result.isDone()) return result;
@@ -87,11 +112,7 @@ public abstract class AbstractJevClient implements JevClient {
                 if (result.isDone()) return;
                 if (failure != null) result.completeExceptionally(failure);
                 else {
-                    try {
-                        Evaluation evaluation = EvaluationCodec.response(response, indexed, model, format);
-                        if (returnedModel != null) returnedModel.set(providerModel(response));
-                        result.complete(evaluation);
-                    }
+                    try { result.complete(decoder.apply(response)); }
                     catch (JevException ex) { result.completeExceptionally(ex); }
                     catch (RuntimeException ex) { result.completeExceptionally(new JevException(JevException.Kind.PROTOCOL, "Invalid evaluation response")); }
                 }

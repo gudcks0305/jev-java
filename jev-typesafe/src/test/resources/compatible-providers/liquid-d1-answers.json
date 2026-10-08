@@ -1,0 +1,18 @@
+{
+  "answers": {
+    "is_bug": {"type": "noul", "noul": 0.9998},
+    "team": {
+      "type": "choice",
+      "choice": "engineering",
+      "probabilities": {"engineering": 0.80, "frontend": 0.18, "billing": 0.02, "account": 0.0005},
+      "confidence": 0.74
+    },
+    "urgency": {
+      "type": "score",
+      "score": 1.996,
+      "confidence": 0.995,
+      "probabilities": {"0": 0.0002, "1": 0.004, "2": 0.996},
+      "legend": {"0": "Low: no immediate impact, standard queue", "1": "Medium: some business impact, handle within 24 hours", "2": "High: significant business impact or time-sensitive, handle within 4 hours"}
+    }
+  }
+}

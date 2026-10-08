@@ -1,0 +1,20 @@
+{
+  "model": "solar-decide",
+  "answers": {
+    "intent": {
+      "type": "choice",
+      "choice": "refund",
+      "probabilities": {"other": 0.000123, "refund": 0.997405, "track": 0.002472},
+      "confidence": 0.983124
+    },
+    "is_angry": {"type": "noul", "noul": 0.99883},
+    "urgency": {
+      "type": "score",
+      "score": 2.846517,
+      "legend": {"0": "No action needed", "1": "Can wait a week", "2": "Needs attention today", "3": "Escalate immediately"},
+      "probabilities": {"0": 0.000538, "1": 0.002106, "2": 0.147656, "3": 0.8497},
+      "confidence": 0.684143
+    }
+  },
+  "usage": {"input_tokens": 670, "output_tokens": 4}
+}

@@ -1,6 +1,6 @@
 # Labeled evaluation example
 
-This example is available in source and is not part of the published 0.2.0
+This example is available in source and is not part of the published 0.3.0
 artifacts. It evaluates the binary question "Does the message request a refund?"
 over labeled rows. It reports how changing a probability threshold affects the
 fraction of automatic decisions and their accuracy.

@@ -11,6 +11,7 @@ import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.NoulQuestion;
 import io.github.gudcks0305.jev.Question;
 import io.github.gudcks0305.jev.cloudflare.CloudflareJevClient;
+import io.github.gudcks0305.jev.openai.OpenAiJevClient;
 import io.github.gudcks0305.jev.openrouter.OpenRouterJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
@@ -104,10 +105,21 @@ class JevAutoConfigurationTests {
     }
 
     @Test
+    void configuresOpenAiProvider() {
+        this.contextRunner
+                .withPropertyValues("jev.provider=openai", "jev.api-key=test-key")
+                .run(context -> {
+                    assertThat(context).hasSingleBean(JevClient.class);
+                    assertThat(context.getBean(JevClient.class)).isInstanceOf(OpenAiJevClient.class);
+                });
+    }
+
+    @Test
     void appliesApiKeyModelAndExactEndpointToEveryProviderRequest() {
         assertProviderRequest("typesafe", TypeSafeJevClient.class, false);
         assertProviderRequest("vercel", VercelJevClient.class, true);
         assertProviderRequest("openrouter", OpenRouterJevClient.class, false);
+        assertProviderRequest("openai", OpenAiJevClient.class, false);
         assertProviderRequest("cloudflare", CloudflareJevClient.class, false);
     }
 
