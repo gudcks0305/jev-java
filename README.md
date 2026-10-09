@@ -7,6 +7,8 @@ Unofficial Java SDK for turning application state into typed Jev judgments throu
 
 Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jackson 2; Spring is optional. This project is not affiliated with TypeSafe AI, Vercel, or OpenAI.
 
+If Jev Java helps your project, consider giving it a [star on GitHub](https://github.com/gudcks0305/jev-java) ⭐.
+
 **Version 0.3.0 adds OpenAI Decisions**: text/image inputs, typed string/boolean
 choices, scoring, per-question refusals and request-level safety identifiers.
 The existing Jev question and record interfaces remain available; see the
