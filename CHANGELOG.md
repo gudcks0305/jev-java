@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Opt-in evaluation observer with elapsed time, requested/returned model, token
+  usage, outcome, and bounded error metadata; no request or response payloads.
+- Labeled Noul evaluation example with offline synthetic data, explicit live
+  mode, threshold coverage/accuracy summaries, and failure accounting.
+
 ## 0.3.0 — 2026-10-07
 
 - OpenAI Decisions adapter (`jev-openai`, `OpenAiJevClient`) with native

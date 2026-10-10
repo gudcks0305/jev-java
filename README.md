@@ -402,6 +402,20 @@ Only explicit **429, 529, 502, 503, and 504** responses retry. Connection failur
 
 The SDK preserves missing probabilities, confidence, and token counts as missing. It does not normalize scores or probability distributions. Provider metadata, warnings, and rounding information remain available through `Evaluation.rawResponse()`. Typed output prevents schema mismatch; it does not guarantee a correct judgment. Validate thresholds against your own labeled data.
 
+## Evaluation and observation (unreleased)
+
+Source builds include an opt-in `.observer(...)` hook on provider builders.
+It reports elapsed time, requested/returned model, usage, outcome, and error
+metadata once per logical evaluation, without request state, keys, or raw
+responses. See [evaluation observation](docs/observation.md) for logging and
+lifecycle details and native OpenAI `decide*` exclusions. This API is not included
+in published 0.3.0 artifacts.
+
+The [labeled evaluation example](docs/evaluation.md) runs offline with synthetic
+probabilities by default, or makes explicit live requests against labeled JSONL
+data. It reports accepted accuracy and coverage at several thresholds, counting
+failed requests separately. Synthetic results are not model accuracy claims.
+
 ## Provider status and validation
 
 Netlify AI Gateway serves Jev through TypeSafe's API, so use `jev-typesafe` or the

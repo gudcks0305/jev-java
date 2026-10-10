@@ -5,6 +5,8 @@
   <dependencies>
     <dependency><groupId>io.github.gudcks0305</groupId><artifactId>jev-spring-boot-starter</artifactId></dependency>
     <dependency><groupId>io.github.gudcks0305</groupId><artifactId>jev-spring-webflux</artifactId></dependency>
+    <dependency><groupId>io.github.gudcks0305</groupId><artifactId>jev-typesafe</artifactId></dependency>
+    <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
   </dependencies>
   <build><plugins><plugin><groupId>org.codehaus.mojo</groupId><artifactId>exec-maven-plugin</artifactId><version>3.6.3</version></plugin></plugins></build>
 </project>

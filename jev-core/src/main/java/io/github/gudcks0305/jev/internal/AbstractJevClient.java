@@ -2,16 +2,24 @@ package io.github.gudcks0305.jev.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.github.gudcks0305.jev.*;
+import io.github.gudcks0305.jev.observation.EvaluationEvent;
+import io.github.gudcks0305.jev.observation.EvaluationObserver;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import java.net.URI;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -22,6 +30,7 @@ public abstract class AbstractJevClient implements JevClient {
     private final String model;
     private final Map<String, String> headers;
     private final WireFormat format;
+    private final EvaluationObserver observer;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Set<CompletableFuture<?>> calls = ConcurrentHashMap.newKeySet();
 
@@ -34,6 +43,7 @@ public abstract class AbstractJevClient implements JevClient {
         this.ownsTransport = config.ownsTransport;
         this.endpoint = config.endpoint;
         this.model = config.model;
+        this.observer = config.observer;
         this.format = Objects.requireNonNull(format, "format");
         Map<String, String> values = new LinkedHashMap<>();
         values.put("Authorization", "Bearer " + config.apiKey);
@@ -58,8 +68,15 @@ public abstract class AbstractJevClient implements JevClient {
             Objects.requireNonNull(question, "Question cannot be null");
             if (indexed.putIfAbsent(question.id(), question) != null) throw new IllegalArgumentException("Duplicate question id");
         }
-        return executeAsync(() -> EvaluationCodec.request(state, indexed, model, format),
-                response -> EvaluationCodec.response(response, indexed, model, format));
+        JsonNode body = EvaluationCodec.request(state, indexed, model, format);
+        long startedNanos = System.nanoTime();
+        AtomicReference<String> returnedModel = observer == null ? null : new AtomicReference<>();
+        return executeAsync(body, response -> {
+            Evaluation evaluation = EvaluationCodec.response(response, indexed, model, format);
+            if (returnedModel != null) returnedModel.set(providerModel(response));
+            return evaluation;
+        }, (evaluation, failure) -> notifyObserver(startedNanos, indexed.size(),
+                returnedModel == null ? null : returnedModel.get(), evaluation, failure));
     }
 
     /** Configured model for provider-specific request encoders. */
@@ -71,7 +88,11 @@ public abstract class AbstractJevClient implements JevClient {
         if (closed.get()) return CompletableFuture.failedFuture(closedError());
         Objects.requireNonNull(encoder, "encoder");
         Objects.requireNonNull(decoder, "decoder");
-        JsonNode body = encoder.get();
+        return executeAsync(encoder.get(), decoder, null);
+    }
+
+    private <T> CompletableFuture<T> executeAsync(JsonNode body, Function<JsonNode, T> decoder,
+                                                 BiConsumer<T, Throwable> onComplete) {
         CompletableFuture<T> result = new CompletableFuture<>();
         AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
         calls.add(result);
@@ -79,6 +100,7 @@ public abstract class AbstractJevClient implements JevClient {
             calls.remove(result);
             CompletableFuture<JsonNode> pending = source.get();
             if (pending != null && !pending.isDone()) pending.cancel(true);
+            if (onComplete != null) onComplete.accept(value, failure);
         });
         if (closed.get()) result.completeExceptionally(closedError());
         if (result.isDone()) return result;
@@ -108,4 +130,39 @@ public abstract class AbstractJevClient implements JevClient {
     }
 
     private static JevException closedError() { return new JevException(JevException.Kind.CLOSED, "Jev client is closed"); }
+
+    private String providerModel(JsonNode response) {
+        JsonNode payload = format == WireFormat.CLOUDFLARE && response.has("result")
+                ? response.path("result") : response;
+        JsonNode value = payload.path("model");
+        return value.isTextual() ? value.textValue() : null;
+    }
+
+    private void notifyObserver(long startedNanos, int questionCount, String returnedModel,
+                                Evaluation evaluation, Throwable failure) {
+        if (observer == null) return;
+        EvaluationEvent.Outcome outcome;
+        Optional<Usage> usage = Optional.empty();
+        Optional<String> providerModel = Optional.empty();
+        Optional<JevException.Kind> errorKind = Optional.empty();
+        OptionalInt statusCode = OptionalInt.empty();
+        if (failure == null) {
+            outcome = EvaluationEvent.Outcome.SUCCESS;
+            usage = Optional.of(evaluation.usage());
+            providerModel = Optional.ofNullable(returnedModel);
+        } else {
+            Throwable cause = failure;
+            while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
+            outcome = cause instanceof CancellationException
+                    ? EvaluationEvent.Outcome.CANCELLED : EvaluationEvent.Outcome.FAILURE;
+            if (cause instanceof JevException jev) {
+                errorKind = Optional.of(jev.kind());
+                if (jev.statusCode() > 0) statusCode = OptionalInt.of(jev.statusCode());
+            }
+        }
+        EvaluationEvent event = new EvaluationEvent(Duration.ofNanos(Math.max(0, System.nanoTime() - startedNanos)),
+                model, providerModel, questionCount, outcome, usage, errorKind, statusCode);
+        try { observer.onEvaluation(event); }
+        catch (Throwable ignored) { /* User callbacks cannot change inference or cancellation. */ }
+    }
 }

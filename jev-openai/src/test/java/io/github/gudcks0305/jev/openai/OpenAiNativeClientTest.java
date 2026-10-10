@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.gudcks0305.jev.JevException;
 import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.observation.EvaluationEvent;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,7 +86,8 @@ class OpenAiNativeClientTest {
     @Test
     void nativeCancellationAndClientCloseShareLifecycleWithEvaluate() {
         var transport = new PendingTransport();
-        var client = OpenAiJevClient.builder().apiKey("test-key").transport(transport).build();
+        var events = new CopyOnWriteArrayList<EvaluationEvent>();
+        var client = OpenAiJevClient.builder().apiKey("test-key").transport(transport).observer(events::add).build();
         var cancelled = client.decideAsync(request());
         var first = transport.pending;
         assertTrue(cancelled.cancel(true));
@@ -100,6 +103,8 @@ class OpenAiNativeClientTest {
         assertTrue(genericSource.isCancelled());
         assertFalse(transport.closed);
         assertClosed(client.decideAsync(null)); // Closed precedes request validation.
+        assertEquals(1, events.size()); // Only the compatible evaluation is observed.
+        assertEquals(JevException.Kind.CLOSED, events.get(0).errorKind().orElseThrow());
     }
 
     @Test

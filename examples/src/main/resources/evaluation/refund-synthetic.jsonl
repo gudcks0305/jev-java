@@ -1,0 +1,8 @@
+{"state":"Please refund the duplicate charge.","label":true,"offline_probability":0.96}
+{"state":"I need help with my login.","label":false,"offline_probability":0.08}
+{"state":"Can you reverse yesterday's payment?","label":true,"offline_probability":0.78}
+{"state":"My invoice address is incorrect.","label":false,"offline_probability":0.23}
+{"state":"Is my canceled order eligible for a refund?","label":true,"offline_probability":0.61}
+{"state":"Where can I download my receipt?","label":false,"offline_probability":0.52}
+{"state":"I want the money back for my order.","label":true,"offline_probability":0.88}
+{"state":"The service is slow today.","label":false,"offline_probability":0.38}
