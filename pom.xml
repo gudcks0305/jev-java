@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-java</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
   <packaging>pom</packaging>
   <name>Jev Java</name>
   <description>Unofficial typed Java SDK for Jev providers and OpenAI Decisions</description>

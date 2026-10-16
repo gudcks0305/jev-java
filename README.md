@@ -9,7 +9,10 @@ Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jack
 
 If Jev Java helps your project, consider giving it a [star on GitHub](https://github.com/gudcks0305/jev-java) ⭐.
 
-**Version 0.3.0 adds OpenAI Decisions**: text/image inputs, typed string/boolean
+**Version 0.4.0 adds experimental TypeSafe images and Box questions**. See the
+[image guide](docs/images.md) for usage and limits.
+
+Version 0.3.0 added OpenAI Decisions: text/image inputs, typed string/boolean
 choices, scoring, per-question refusals and request-level safety identifiers.
 The existing Jev question and record interfaces remain available; see the
 [OpenAI guide](docs/openai-decisions.md) for both APIs and their boundaries.
@@ -34,7 +37,7 @@ For direct TypeSafe access:
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-typesafe</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -50,7 +53,7 @@ Gradle Kotlin DSL:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("io.github.gudcks0305:jev-typesafe:0.3.0")
+    implementation("io.github.gudcks0305:jev-typesafe:0.4.0")
 }
 ```
 
@@ -182,6 +185,41 @@ that Vercel adapter; override either with `.model("...")`. Vercel also offers
 a public TypeSafe-compatible route usable with `TypeSafeJevClient`; see the
 [Vercel guide](docs/vercel-ai-gateway.md) for its explicit key, model, and URL.
 
+## Experimental TypeSafe images and Box
+
+**Since 0.4.0.** These APIs are experimental; existing provider defaults remain unchanged.
+
+The TypeSafe client supports experimental PNG/JPEG image input in Jev 1.13 and
+1.14. Jev 1.14 adds `BoxQuestion` for image localization. TypeSafe marks both
+features as prototypes whose request format, limits, answers, and accuracy may
+change. Image and Box support is available only through `TypeSafeJevClient`;
+see [images and Box](docs/images.md) for setup, limits, and provider boundaries.
+
+```java
+import io.github.gudcks0305.jev.JevImage;
+import io.github.gudcks0305.jev.JevInput;
+import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
+import java.nio.file.Path;
+import java.util.Map;
+
+public final class ImageExample {
+    public static void main(String[] args) throws Exception {
+        var photo = JevImage.fromPath(Path.of("receipt.jpg"), "jpg");
+        var input = JevInput.withImages(Map.of("receipt", photo.reference()), photo);
+        var total = NoulQuestion.of("has_total", "Does `receipt` show a total?");
+        try (var client = TypeSafeJevClient.builder().build()) {
+            var result = client.evaluate(input, total);
+            System.out.println(result.answer(total).probability());
+        }
+    }
+}
+```
+
+Use `BoxQuestion` only with `.model("jev-1.14.0")`; current `jev-latest`
+resolves to Jev 1.13 and does not support Box. Image requests are explicitly
+opted into TypeSafe's experimental feature by the SDK.
+
 ## OpenRouter and custom endpoints
 
 `OpenRouterJevClient` uses `OPENROUTER_API_KEY`, model `typesafe/jev-1.13`, and
@@ -257,7 +295,7 @@ The starter includes five provider adapters and defaults to TypeSafe over JDK `H
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-boot-starter</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -279,7 +317,7 @@ The base starter does not pull in WebFlux. Add the optional module and select it
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-webflux</artifactId>
-  <version>0.3.0</version>
+  <version>0.4.0</version>
 </dependency>
 ```
 
@@ -438,7 +476,7 @@ route](docs/vercel-ai-gateway.md) is documented separately from its v4 adapter.
 
 TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter and Cloudflare use official contracts and local HTTP tests; live inference has not been verified because their credentials were unavailable. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
-The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The seven Java examples in this README were also compiled with `--release 17`.
+The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The eight Java examples in this README were also compiled with `--release 17`.
 
 ## Build and run examples from source
 

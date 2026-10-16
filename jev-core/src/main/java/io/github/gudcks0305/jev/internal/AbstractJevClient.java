@@ -39,7 +39,7 @@ public abstract class AbstractJevClient implements JevClient {
         values.put("Authorization", "Bearer " + config.apiKey);
         values.put("Content-Type", "application/json");
         values.put("Accept", "application/json");
-        values.put("User-Agent", "jev-java/0.3.0");
+        values.put("User-Agent", "jev-java/0.4.0");
         if (format == WireFormat.VERCEL) {
             values.put("ai-gateway-protocol-version", "0.0.1");
             values.put("ai-gateway-auth-method", "api-key");
@@ -72,6 +72,12 @@ public abstract class AbstractJevClient implements JevClient {
         Objects.requireNonNull(encoder, "encoder");
         Objects.requireNonNull(decoder, "decoder");
         JsonNode body = encoder.get();
+        Map<String, String> requestHeaders = headers;
+        if (format == WireFormat.TYPESAFE && body.has("assets")) {
+            var imageHeaders = new LinkedHashMap<>(headers);
+            imageHeaders.put("TypeSafe-Danger-Zone-Images", "true");
+            requestHeaders = Map.copyOf(imageHeaders);
+        }
         CompletableFuture<T> result = new CompletableFuture<>();
         AtomicReference<CompletableFuture<JsonNode>> source = new AtomicReference<>();
         calls.add(result);
@@ -83,7 +89,7 @@ public abstract class AbstractJevClient implements JevClient {
         if (closed.get()) result.completeExceptionally(closedError());
         if (result.isDone()) return result;
         try {
-            CompletableFuture<JsonNode> pending = transport.post(endpoint, headers, body);
+            CompletableFuture<JsonNode> pending = transport.post(endpoint, requestHeaders, body);
             source.set(pending);
             if (result.isDone()) pending.cancel(true);
             pending.whenComplete((response, failure) -> {

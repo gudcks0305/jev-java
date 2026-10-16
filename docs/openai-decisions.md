@@ -1,7 +1,7 @@
 # OpenAI Decisions API
 
-Checked against official documentation on 2026-10-07. Available starting with
-`jev-openai:0.3.0`, or `jev-spring-boot-starter:0.3.0` for Spring applications.
+Checked against official documentation on 2026-10-07. Available since 0.3.0;
+use `jev-openai:0.4.0`, or `jev-spring-boot-starter:0.4.0` for Spring applications.
 Versions 0.2.0 and earlier do not include this adapter.
 
 OpenAI Decisions is a public beta API at `POST https://api.openai.com/v1/decisions`.

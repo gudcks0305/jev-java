@@ -2,6 +2,7 @@ package io.github.gudcks0305.jev.webflux;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
 import io.github.gudcks0305.jev.JevException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 
 import java.net.URI;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,8 +30,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -75,6 +79,34 @@ class WebClientJevTransportTest {
         assertEquals("yes", result.get("decision").asText());
         assertEquals(1, filterCalls.get());
         assertEquals(1, exchanges.get());
+    }
+
+    @Test
+    void utf8WireBytesMatchImageLimitEncodingIncludingSupplementaryCharacters() throws Exception {
+        AtomicReference<byte[]> received = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/evaluate", exchange -> {
+            received.set(exchange.getRequestBody().readAllBytes());
+            byte[] response = "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try {
+            WebClient client = WebClient.builder().clientConnector(
+                    new org.springframework.http.client.reactive.JdkClientHttpConnector()).build();
+            var transport = transport(client, Duration.ofSeconds(5), 0);
+            var body = JSON.createObjectNode().put("state", "한글 😀");
+            byte[] expected = io.github.gudcks0305.jev.internal.JsonSupport.utf8Bytes(body);
+            transport.post(java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/evaluate"),
+                    Map.of("Content-Type", "application/json"), body).get(5, TimeUnit.SECONDS);
+            assertArrayEquals(expected, received.get());
+            assertEquals(body, JSON.readTree(received.get()));
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test

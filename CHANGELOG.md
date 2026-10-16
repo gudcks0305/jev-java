@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.0 — 2026-10-17
+
+- Experimental TypeSafe image inputs: `JevImage` and `JevInput` attach PNG/JPEG
+  assets referenced from state, instructions, or criteria. Image requests send
+  base64 JSON and the required experimental header without changing text requests.
+- Jev 1.14 `BoxQuestion`, `BoxAnswer`, and `BoxCoordinates` preserve normalized
+  edges and optional confidence. Box requires an attached image and the TypeSafe
+  wire format; pin `jev-1.14.0` rather than relying on the stable model alias.
+- Existing synchronous, asynchronous, record, Spring and Reactor APIs accept the
+  image input wrapper, retaining cancellation, retries and transport ownership.
+- Request-size validation matches the UTF-8 bytes sent by JDK and WebClient,
+  including supplementary Unicode. Embedded Jackson POJO/raw JSON references
+  are recognized without losing numeric precision or exposing malformed content.
+- `Question` and `Answer` gain sealed subtypes; exhaustive switches may need
+  Box cases. No Box record annotation, multipart uploads or automatic resizing.
+
+One synthetic live image request succeeded, but its returned Box did not match
+the true boundaries. This is interoperability evidence, not an accuracy claim.
+See [images](docs/images.md), [validation](docs/validation.md), and
+[release notes](docs/releases/0.4.0.md).
+
 ## 0.3.0 — 2026-10-07
 
 - OpenAI Decisions adapter (`jev-openai`, `OpenAiJevClient`) with native

@@ -17,6 +17,16 @@ public final class EvaluationCodec {
     }
 
     public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, WireFormat format) {
+        if (format != WireFormat.TYPESAFE && questions.values().stream().anyMatch(BoxQuestion.class::isInstance)) {
+            throw new IllegalArgumentException("Box questions require the TypeSafe wire format");
+        }
+        JevInput imageInput = state instanceof JevInput value ? value : null;
+        if (imageInput != null && format != WireFormat.TYPESAFE) {
+            throw new IllegalArgumentException("Image assets require the TypeSafe wire format");
+        }
+        if (imageInput == null && questions.values().stream().anyMatch(BoxQuestion.class::isInstance)) {
+            throw new IllegalArgumentException("Box questions require an image attached through JevInput");
+        }
         if (format == WireFormat.OPENAI) return OpenAiDecisionCodec.request(state, questions, model);
         boolean gateway = format == WireFormat.VERCEL;
         boolean cloudflare = format == WireFormat.CLOUDFLARE;
@@ -26,14 +36,16 @@ public final class EvaluationCodec {
             body.put("model", model);
             input = body.putObject("input");
         }
-        input.set("state", JsonSupport.content(state, "State"));
+        input.set("state", imageInput == null ? JsonSupport.content(state, "State") : imageInput.state());
         if (!gateway && !cloudflare) body.put("model", model);
         ObjectNode encoded = input.putObject("questions");
         questions.forEach((id, question) -> {
             if (format == WireFormat.OPENROUTER) validateOpenRouterCriteria(question);
             ObjectNode entry = encoded.putObject(id);
             entry.set("instructions", question.instructions());
-            if (question instanceof ChoiceQuestion<?> choice) {
+            if (question instanceof BoxQuestion) {
+                entry.put("type", "box");
+            } else if (question instanceof ChoiceQuestion<?> choice) {
                 entry.put("type", "choice");
                 entry.set("criteria", choice.criteria());
             } else if (question instanceof ScoreQuestion score) {
@@ -48,7 +60,42 @@ public final class EvaluationCodec {
                 }
             }
         });
+        if (imageInput != null) {
+            // Embedded POJONodes serialize to JSON strings/objects too. Inspect their
+            // actual values rather than treating them as opaque reference-free nodes.
+            ObjectNode materialized = (ObjectNode) JsonSupport.materialize(body);
+            attachImages(materialized, imageInput, (ObjectNode) materialized.path("questions"));
+            return materialized;
+        }
         return body;
+    }
+
+    private static void attachImages(ObjectNode body, JevInput input, ObjectNode questions) {
+        long base64Bytes = input.images().stream().mapToLong(image -> image.dataBase64().length()).sum();
+        if (base64Bytes > 32 * 1024 * 1024) {
+            throw new IllegalArgumentException("Image request body exceeds 32 MiB");
+        }
+        ObjectNode assets = body.putObject("assets");
+        for (JevImage image : input.images()) {
+            boolean referenced = references(body.path("state"), image.reference());
+            for (JsonNode question : questions) {
+                referenced |= references(question.path("instructions"), image.reference())
+                        || references(question.path("criteria"), image.reference());
+            }
+            if (!referenced) throw new IllegalArgumentException("Every image must be referenced in state, instructions, or criteria");
+            assets.putObject(image.reference()).put("type", "image").put("format", image.format())
+                    .put("data_base64", image.dataBase64());
+        }
+        if (JsonSupport.utf8Bytes(body).length > 32 * 1024 * 1024) {
+            throw new IllegalArgumentException("Image request body exceeds 32 MiB");
+        }
+    }
+
+    private static boolean references(JsonNode content, String reference) {
+        if (content.isTextual()) return content.textValue().contains(reference);
+        // Iterating a JSON object visits values only: API references never replace keys.
+        for (JsonNode child : content) if (references(child, reference)) return true;
+        return false;
     }
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, boolean gateway) {
@@ -76,7 +123,18 @@ public final class EvaluationCodec {
             require(wire.isObject(), "Missing or invalid answer");
             JsonNode confidence = gateway ? payload.path("providerMetadata").path("typesafe").path("confidence").path(id)
                     : wire.path("confidence");
-            if (question instanceof NoulQuestion) {
+            if (question instanceof BoxQuestion) {
+                require(format == WireFormat.TYPESAFE, "Box answers require the TypeSafe wire format");
+                require(wire.path("type").isTextual() && wire.path("type").textValue().equals("box"), "Answer type mismatch");
+                JsonNode box = wire.path("box");
+                require(box.isObject(), "Missing or invalid box");
+                double top = probability(box.path("top"));
+                double bottom = probability(box.path("bottom"));
+                double left = probability(box.path("left"));
+                double right = probability(box.path("right"));
+                require(top < bottom && left < right, "Invalid box edge order");
+                answers.put(id, new BoxAnswer(new BoxCoordinates(top, bottom, left, right), confidence(confidence)));
+            } else if (question instanceof NoulQuestion) {
                 require(wire.path("type").asText().equals(gateway ? "boolean" : "noul"), "Answer type mismatch");
                 answers.put(id, new NoulAnswer(probability(wire.path(gateway ? "probability" : "noul"))));
             } else if (question instanceof ChoiceQuestion<?> choice) {

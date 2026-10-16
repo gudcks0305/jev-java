@@ -75,10 +75,10 @@ public final class WebClientJevTransport implements JevTransport {
             return failedFuture(closedException());
         }
 
-        final String requestBody;
+        final byte[] requestBody;
         final Map<String, String> requestHeaders;
         try {
-            requestBody = objectMapper.writeValueAsString(body);
+            requestBody = objectMapper.writeValueAsBytes(body);
             requestHeaders = Map.copyOf(headers);
         } catch (RuntimeException exception) {
             return failedFuture(new JevException(
@@ -108,7 +108,7 @@ public final class WebClientJevTransport implements JevTransport {
         }
     }
 
-    private Mono<JsonNode> attempt(URI uri, Map<String, String> headers, String body, int retriesUsed) {
+    private Mono<JsonNode> attempt(URI uri, Map<String, String> headers, byte[] body, int retriesUsed) {
         return Mono.defer(() -> {
             try {
                 return client.post()
@@ -283,10 +283,10 @@ public final class WebClientJevTransport implements JevTransport {
     private final class Call {
         private final URI uri;
         private final Map<String, String> headers;
-        private final String body;
+        private final byte[] body;
         private final CallFuture result = new CallFuture();
 
-        private Call(URI uri, Map<String, String> headers, String body) {
+        private Call(URI uri, Map<String, String> headers, byte[] body) {
             this.uri = uri;
             this.headers = headers;
             this.body = body;
