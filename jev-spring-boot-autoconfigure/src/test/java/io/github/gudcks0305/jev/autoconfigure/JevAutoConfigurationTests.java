@@ -7,6 +7,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 import io.github.gudcks0305.jev.Evaluation;
+import io.github.gudcks0305.jev.BoxQuestion;
+import io.github.gudcks0305.jev.JevImage;
+import io.github.gudcks0305.jev.JevInput;
 import io.github.gudcks0305.jev.JevClient;
 import io.github.gudcks0305.jev.NoulQuestion;
 import io.github.gudcks0305.jev.Question;
@@ -131,6 +134,55 @@ class JevAutoConfigurationTests {
                     assertThat(context).hasSingleBean(JevTransport.class);
                     assertThat(context.getBean(JevTransport.class)).isInstanceOf(WebClientJevTransport.class);
                     assertThat(context).hasSingleBean(ReactorJevClient.class);
+                });
+    }
+
+    @Test
+    void typeSafeImagesUseBoundModelAndLazyReactorWithoutNewProperties() {
+        var image = JevImage.fromBytes(new byte[]{1, 2, 3}, "png");
+        var input = JevInput.withImages(Map.of("photo", image.reference()), image);
+        this.contextRunner
+                .withUserConfiguration(CapturingTransportConfiguration.class)
+                .withPropertyValues("jev.api-key=fixture-key", "jev.provider=typesafe",
+                        "jev.model=jev-1.14.0", "jev.transport=webclient")
+                .run(context -> {
+                    var transport = context.getBean(CapturingTransport.class);
+                    var mono = context.getBean(ReactorJevClient.class)
+                            .evaluate(input, BoxQuestion.of("mug", "The mug in `photo`"));
+                    assertThat(transport.body).isNull();
+                    var subscription = mono.subscribe();
+                    assertThat(transport.body.path("model").asText()).isEqualTo("jev-1.14.0");
+                    assertThat(transport.body.at("/state/photo").asText()).isEqualTo(image.reference());
+                    assertThat(transport.body.path("assets").size()).isEqualTo(1);
+                    assertThat(transport.headers).containsEntry("TypeSafe-Danger-Zone-Images", "true");
+                    subscription.dispose();
+                    assertThat(transport.pending).isCancelled();
+                });
+    }
+
+    @Test
+    void imageHeaderAndBoxResponsePassThroughAutoConfiguredWebClient() {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        WebClient webClient = WebClient.builder().exchangeFunction(request -> {
+            calls.incrementAndGet();
+            assertThat(request.headers().getFirst("TypeSafe-Danger-Zone-Images")).isEqualTo("true");
+            return Mono.just(org.springframework.web.reactive.function.client.ClientResponse
+                    .create(org.springframework.http.HttpStatus.OK)
+                    .header("Content-Type", "application/json")
+                    .body("{\"answers\":{\"box\":{\"type\":\"box\",\"box\":{\"top\":0,\"bottom\":1,\"left\":0,\"right\":1}}}}")
+                    .build());
+        }).build();
+        this.contextRunner.withBean(WebClient.class, () -> webClient)
+                .withPropertyValues("jev.api-key=fixture-key", "jev.transport=webclient", "jev.model=jev-1.14.0")
+                .run(context -> {
+                    var image = JevImage.fromBytes(new byte[]{1}, "png");
+                    var box = BoxQuestion.of("box", "The mug in the image");
+                    var result = context.getBean(ReactorJevClient.class)
+                            .evaluate(JevInput.withImages(image.reference(), image), box)
+                            .block(Duration.ofSeconds(2));
+                    assertThat(result.answer(box).box().right()).isEqualTo(1);
+                    assertThat(result.answer(box).confidence()).isEmpty();
+                    assertThat(calls).hasValue(1);
                 });
     }
 
@@ -364,6 +416,7 @@ class JevAutoConfigurationTests {
         private URI uri;
         private Map<String, String> headers;
         private JsonNode body;
+        private CompletableFuture<JsonNode> pending;
 
         @Override
         public CompletableFuture<JsonNode> post(
@@ -371,7 +424,8 @@ class JevAutoConfigurationTests {
             this.uri = uri;
             this.headers = headers;
             this.body = body;
-            return new CompletableFuture<>();
+            pending = new CompletableFuture<>();
+            return pending;
         }
 
         @Override

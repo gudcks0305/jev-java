@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.github.gudcks0305.jev.internal.JsonSupport;
 
 /** An immutable question. Its identity is the type-safe handle used to retrieve its answer. */
-public abstract sealed class Question<A extends Answer> permits ChoiceQuestion, NoulQuestion, ScoreQuestion {
+public abstract sealed class Question<A extends Answer> permits ChoiceQuestion, NoulQuestion, ScoreQuestion, BoxQuestion {
     private final String id;
     private final JsonNode instructions;
 

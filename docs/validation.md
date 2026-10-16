@@ -2,6 +2,90 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## TypeSafe images and Box 0.4.0 (2026-10-16)
+
+The [image/Box APIs](images.md) are included starting with 0.4.0; they
+are not part of the 0.3.0 artifacts. Official contracts were checked
+on 2026-10-16: [Images](https://docs.typesafe.ai/images),
+[Box](https://docs.typesafe.ai/primitives/box),
+[Models](https://docs.typesafe.ai/models), and [HTTP API](https://docs.typesafe.ai/api).
+The dedicated Images page documents experimental image input on 1.13 and 1.14,
+despite the model table still listing text. Box requires 1.14; the alias table
+currently maps `jev-latest` to 1.13.0 and `jev-preview` to 1.14.0.
+
+### Offline verification
+
+`./mvnw -pl jev-typesafe -am test` passed **217 tests**.
+`./mvnw verify` passed **383 tests, 0 failures/errors/skips** on OpenJDK 25.0.2
+with Spring Boot 3.5.16, compiling Java source/target release 17.
+`./mvnw verify -Dspring-boot.version=4.1.1` passed the same **383 tests** on
+the same runtime. README and image-guide Java snippets also compile with
+`javac --release 17`, and core Javadoc packaging passes. This update did not
+run the suites on Java 17/21 runtimes or remote CI. New coverage
+includes base64 assets and references in state/instructions/criteria, immutable
+input snapshots, format/file/body limits, unused assets, unsupported providers,
+Box wire validation and missing confidence. A loopback server verifies JSON
+and header delivery across a retry. Injected transports verify cancellation,
+close, record mapping, and isolation of image headers from text requests.
+Spring tests verify model binding, lazy Reactor requests/cancellation and the
+auto-configured WebClient response path without new configuration properties.
+All offline image/Box responses are synthetic fixtures; no accuracy claim is
+derived from them.
+
+Independent critic review found two defects that the initial 376-test suite
+missed. Supplementary Unicode characters made the string-based byte estimate
+smaller than the JDK's actual UTF-8 JSON encoding (a reproduction measured
+12,000,272 estimated bytes against 36,000,272 wire bytes). The size check and
+both built-in transports now use byte serialization. Tests cover the inclusive
+32 MiB boundary, one extra byte, and WebClient's actual loopback wire bytes.
+
+The second defect rejected valid image references inside Jackson `POJONode`
+values. Re-review exposed the same issue for `RawValue`. Image inputs now
+materialize embedded values before reference checks, snapshot mutable POJOs,
+and preserve arbitrary-precision numbers. Regression tests cover references in
+state/instructions/criteria and sanitized malformed raw-JSON errors. These
+corrections add seven offline tests; the live smoke below was not repeated.
+
+Release preparation on 2026-10-17 also passed `./mvnw clean verify -Prelease`
+for version 0.4.0. `./scripts/package-release.sh 0.4.0` produced 37 files;
+all 36 checksum entries and the five new public core API classes were checked.
+All eight README Java examples compiled with `--release 17` against the 0.4.0
+build. Central packaging was checked separately without signing or upload.
+
+### Live smoke
+
+One Java SDK request to `https://api.typesafe.ai/v1/systemone`, with retries
+disabled and model pinned to `jev-1.14.0`, succeeded. It used only the generated
+[280 × 280 red rectangle](../examples/src/main/resources/images/red-rectangle.png)
+and asked a Noul presence question plus a Box location question. No user files,
+repository source, credentials, or customer data were included as model input.
+
+Observed response:
+
+- Resolved model: `jev-1.14.0`.
+- Presence probability: `0.88`.
+- Box: `top=0.15, bottom=0.98, left=0.13, right=0.75`.
+- Box confidence: `0.42`.
+- Usage: 532 input tokens, 36 output tokens.
+
+The true rectangle edges are approximately `0.25, 0.75, 0.25, 0.75` in that
+order. The returned box does **not** match them: this verifies live image
+request/response support, not accurate localization. TypeSafe labels images
+and Box experimental. One synthetic request does not establish reliability on
+real images, thresholds, gateway compatibility, or production suitability.
+Live image inference on 1.13/`jev-latest`, image criteria, and other providers
+was not exercised.
+
+Reproduce explicitly from the repository root (requires `TYPESAFE_API_KEY`;
+the final command sends one billed request):
+
+```sh
+./mvnw install -DskipTests
+./mvnw -pl examples exec:java \
+  -Dexec.mainClass=io.github.gudcks0305.jev.examples.ImageExample \
+  '-Dexec.args=examples/src/main/resources/images/red-rectangle.png png'
+```
+
 ## OpenAI Decisions 0.3.0 (2026-10-07)
 
 The provider/core focused suite passed **198 tests**. The full offline suite

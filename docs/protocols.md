@@ -2,7 +2,8 @@
 
 Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26;
 Venice and AI/ML API guidance checked on 2026-09-28; additional compatible
-services and Vercel public API guidance checked on 2026-10-01.
+services and Vercel public API guidance checked on 2026-10-01; TypeSafe images,
+Box, models, and API checked on 2026-10-16.
 This SDK is unofficial.
 
 ## OpenAI Decisions (since 0.3.0, checked 2026-10-07)
@@ -29,10 +30,25 @@ fixtures from actual provider calls.
 - `POST https://api.typesafe.ai/v1/systemone`
 - `Authorization: Bearer <TYPESAFE_API_KEY>`
 - Body: `model`, `state`, named `questions`.
-- Primitives: `choice`, `noul`, `score`.
+- Primitives: `choice`, `noul`, `score`; experimental Jev 1.14 `box`.
 - Responses: named `answers`, resolved `model`, snake_case token usage.
+- Experimental images: PNG/JPEG assets may be referenced from string values in
+  `state`, `instructions`, and `criteria`. Requests with images or a `box`
+  question require `TypeSafe-Danger-Zone-Images: true`.
 
 Sources: [HTTP API](https://docs.typesafe.ai/api), [models](https://docs.typesafe.ai/models), [structured criteria](https://docs.typesafe.ai/primitives/advanced).
+
+TypeSafe documents images for Jev 1.13 and 1.14; Box requires model
+`jev-1.14.0` (or the moving `jev-preview` alias). The `jev-latest` alias
+currently points to stable `jev-1.13.0`, so the SDK default supports images but
+not Box. The model catalog's input table still says text, while the dedicated
+[Images guide](https://docs.typesafe.ai/images) documents image support; see
+the full contract and this SDK's explicit TypeSafe-only prototype boundary in
+[images and Box](images.md). TypeSafe warns that formats, limits, and accuracy
+may change. These claims do not establish support through gateways or other
+providers. The Java image/Box API is available since 0.4.0; the separate
+[validation record](validation.md#typesafe-images-and-box-040-2026-10-16)
+reports offline checks and a limited direct-TypeSafe live smoke.
 
 Netlify AI Gateway documents Jev through this TypeSafe API rather than a
 separate Java wire format. It supplies `TYPESAFE_API_KEY` and
