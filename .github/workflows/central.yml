@@ -3,11 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Verify packaging, upload for manual Portal publication, or publish a released version publicly
+        description: Verify, upload, publish, or inspect an existing deployment
         type: choice
-        options: [verify, upload, publish]
+        options: [verify, upload, publish, status]
         default: verify
         required: true
+      deployment-id:
+        description: Existing deployment UUID (required only for status; never uploads)
+        type: string
+        required: false
 permissions:
   contents: read
 concurrency:
@@ -26,6 +30,44 @@ jobs:
           server-id: central
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Read existing Central deployment status
+        if: inputs.operation == 'status'
+        env:
+          DEPLOYMENT_ID: ${{ inputs.deployment-id }}
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+        run: |
+          if [[ ! "$DEPLOYMENT_ID" =~ ^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$ ]]; then
+            echo "::error::Status requires a deployment UUID"
+            exit 1
+          fi
+          for name in CENTRAL_TOKEN_USERNAME CENTRAL_TOKEN_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing Actions secret: $name"
+              exit 1
+            fi
+          done
+          token=$(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)
+          echo "::add-mask::$token"
+          response="$RUNNER_TEMP/central-status.json"
+          curl --fail --silent --show-error --retry 3 --retry-delay 5 \
+            --connect-timeout 10 --max-time 60 \
+            --request POST --header "Authorization: Bearer $token" \
+            "https://central.sonatype.com/api/v1/publisher/status?id=$DEPLOYMENT_ID" \
+            --output "$response"
+          unset token
+          jq -e --arg id "$DEPLOYMENT_ID" '.deploymentId == $id' "$response" > /dev/null
+          state=$(jq -er '.deploymentState' "$response")
+          case "$state" in
+            PENDING|VALIDATING|VALIDATED|PUBLISHING|PUBLISHED|FAILED) ;;
+            *) echo "::error::Unexpected deployment state"; exit 1 ;;
+          esac
+          echo "Deployment $DEPLOYMENT_ID: $state"
+          printf '## Central deployment status\n\n`%s`: **%s**\n' "$DEPLOYMENT_ID" "$state" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$state" == FAILED ]]; then
+            jq '{deploymentId, deploymentState, errors}' "$response"
+            exit 1
+          fi
       - name: Check public release before publishing
         if: inputs.operation == 'publish'
         env:

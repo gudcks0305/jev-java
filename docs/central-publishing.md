@@ -66,6 +66,29 @@ replaced or removed. Use a new version for future changes. The existing `v0.1.0`
 GitHub tag predates this workflow; run from a revision containing the Central
 profile rather than that old tag.
 
+### Recover a status polling failure without uploading again
+
+After a successful automatic upload, a transient status-query error (such as
+HTTP 502) does not establish that publication failed. Do not rerun `publish`
+until the existing deployment's outcome is known: that operation uploads again.
+Use the deployment UUID from the workflow log with the read-only `status`
+operation on a ref containing it:
+
+```sh
+gh workflow run central.yml --ref main -f operation=status \
+  -f deployment-id=YOUR_DEPLOYMENT_UUID
+```
+
+This validates the UUID and queries only the official publisher status API,
+using the two Central token secrets. It does not import a signing key, build,
+upload, publish, or delete a deployment. The derived Bearer token is masked.
+Transient HTTP status failures retry at most three times. The workflow summary
+reports `PENDING`, `VALIDATING`, `VALIDATED`, `PUBLISHING`, `PUBLISHED`, or `FAILED`.
+Processing states require a later status check; they are not publication success.
+For `FAILED`, inspect the validation errors. For `PUBLISHED`, verify the artifacts
+are downloadable from Maven Central. See the
+[official status API](https://central.sonatype.org/publish/publish-portal-api/#verify-status-of-the-deployment).
+
 ## Local verification
 
 ```sh
