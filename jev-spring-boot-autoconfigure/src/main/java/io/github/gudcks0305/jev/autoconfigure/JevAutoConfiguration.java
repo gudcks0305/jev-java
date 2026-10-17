@@ -9,6 +9,7 @@ import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
 import io.github.gudcks0305.jev.vercel.VercelJevClient;
 import io.github.gudcks0305.jev.webflux.ReactorJevClient;
 import io.github.gudcks0305.jev.webflux.WebClientJevTransport;
+import java.util.Locale;
 import reactor.core.publisher.Mono;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -85,6 +86,7 @@ public class JevAutoConfiguration {
 
     private static JevClient vercelClient(JevProperties properties, JevTransport transport) {
         var builder = VercelJevClient.builder()
+                .protocol(vercelProtocol(properties.getVercelProtocol()))
                 .timeout(properties.getTimeout())
                 .maxRetries(properties.getMaxRetries());
         if (transport != null) {
@@ -103,6 +105,15 @@ public class JevAutoConfiguration {
             builder.endpoint(properties.getEndpoint());
         }
         return builder.build();
+    }
+
+    private static VercelJevClient.Protocol vercelProtocol(String value) {
+        if (value == null) throw new IllegalArgumentException("jev.vercel-protocol must be evaluation-v4 or decision-v4");
+        return switch (value.trim().toLowerCase(Locale.ROOT)) {
+            case "evaluation-v4" -> VercelJevClient.Protocol.EVALUATION_V4;
+            case "decision-v4" -> VercelJevClient.Protocol.DECISION_V4;
+            default -> throw new IllegalArgumentException("jev.vercel-protocol must be evaluation-v4 or decision-v4");
+        };
     }
 
     private static JevClient openRouterClient(JevProperties properties, JevTransport transport) {

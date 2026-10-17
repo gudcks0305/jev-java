@@ -9,10 +9,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Immutable state plus explicitly attached experimental TypeSafe images. Pass this
+ * Immutable state plus explicitly attached experimental Jev images. Pass this
  * as the state argument of evaluate/evaluateAsync, including record and Reactor APIs.
  * Every image must be referenced in a string value in state, instructions, or criteria.
- * Using this input opts that request into TypeSafe's experimental images header.
+ * The client encodes images for its provider. Direct TypeSafe requests also carry
+ * TypeSafe's experimental images header; gateway clients use their own contracts.
+ * Supported by TypeSafe, OpenRouter, and Cloudflare clients. Other clients have
+ * their own input APIs and may reject this wrapper.
  */
 public final class JevInput {
     private final JsonNode state;

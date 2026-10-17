@@ -2,6 +2,59 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## Provider images and Vercel Decision v4 0.5.0 (2026-10-17)
+
+OpenRouter and Cloudflare now implement the image/Box contracts linked in
+[images](images.md). Vercel adds an explicit Decision v4 option described in
+[the Vercel guide](vercel-ai-gateway.md). Provider defaults and legacy Vercel
+evaluation behavior remain unchanged. Contract review distinguishes the
+TypeSafe-compatible Vercel endpoint from its current Decision v4 endpoint.
+
+### Offline verification
+
+`./mvnw clean verify -Prelease` passed **421 tests, 0 failures/errors/skips**
+on OpenJDK 25.0.2 with Spring Boot 3.5.16 and Java source/target release 17.
+`./mvnw verify -Dspring-boot.version=4.1.1` passed the same 421 tests.
+The local suite was not rerun on Java 17/21 runtimes; those are CI matrix jobs.
+
+Coverage includes provider-specific wire placement, full UTF-8 size boundaries,
+repeated inline images, sentence/nested/POJO/raw references, input immutability,
+Box coordinates and absent metadata, Cloudflare envelopes, Vercel file state
+parts and refusals, unsupported wrappers, cancellation and transport ownership.
+Eight new Spring configuration test invocations cover legacy defaults, property
+binding/rejection, other providers, native Reactor input, and loopback HTTP
+through both JDK and WebClient transports. All response fixtures are synthetic
+contract examples, not provider accuracy evidence.
+
+Independent critic review covered all changed and untracked sources, provider
+contracts and documentation. Isolated Java 17-targeted probes additionally
+checked POJO/raw references, unchanged caller input, OpenRouter image legends,
+cross-provider wrapper rejection and Vercel refusals. The final review found
+no actionable issues.
+
+Seven README Java blocks, two image-guide blocks and three Vercel-guide blocks
+compiled with `--release 17`; statement snippets were wrapped in a main method
+with contextual imports. Runnable examples compile in the reactor build.
+`./scripts/package-release.sh 0.5.0` produced 37 files; all checksum entries and
+the new Vercel input/protocol classes were checked. Central packaging is verified
+separately with `-Prelease,central -pl '!examples' -Dgpg.skip=true`, without
+signing, uploading or accessing publication credentials.
+
+### Live verification limit
+
+OpenRouter and Cloudflare credentials were unavailable, so neither provider's
+live image/Box inference was exercised. Their official examples and local
+replays do not establish account access or successful live Java inference.
+
+One direct HTTP request to
+`https://ai-gateway.vercel.sh/v4/ai/decision-model`, using model
+`typesafe-ai/jev-1.14.0`, the official state-parts format and the generated
+280 × 280 red rectangle fixture, returned **HTTP 403**. No retry was made and no
+successful inference result was returned. The error code/cause was not
+established; this is not the older v4 evaluation account diagnostic. It was a
+direct HTTP contract probe, not a successful Java SDK or TypeSafe-compatible
+route test. No real customer images or repository source were sent.
+
 ## TypeSafe images and Box 0.4.0 (2026-10-16)
 
 The [image/Box APIs](images.md) are included starting with 0.4.0; they
