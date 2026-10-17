@@ -100,7 +100,7 @@ class TypeSafeImagesTest {
     @Test void rejectsUnsupportedProviderFormatsBeforeSerializingAssets() {
         var image = image();
         for (var format : WireFormat.values()) {
-            if (format == WireFormat.TYPESAFE) continue;
+            if (format != WireFormat.VERCEL && format != WireFormat.VERCEL_DECISION && format != WireFormat.OPENAI) continue;
             assertThrows(IllegalArgumentException.class, () -> EvaluationCodec.request(
                     JevInput.withImages(image.reference(), image), Map.of("present", PRESENT), "model", format));
         }

@@ -140,11 +140,11 @@ class BoxCodecTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = WireFormat.class, names = "TYPESAFE", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = WireFormat.class, names = {"VERCEL", "VERCEL_DECISION", "OPENAI"})
     void rejectsBoxBeforeProviderEncodingIncludingOpenAiDelegation(WireFormat format) {
         var failure = assertThrows(IllegalArgumentException.class, () ->
                 EvaluationCodec.request("photo", questions(VISIBLE, BOX), "model", format));
-        assertEquals("Box questions require the TypeSafe wire format", failure.getMessage());
+        assertEquals("Box questions require TypeSafe, OpenRouter, or Cloudflare", failure.getMessage());
     }
 
     @Test void publicAnswerAndCoordinatesRejectInvalidValues() {

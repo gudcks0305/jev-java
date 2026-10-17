@@ -28,6 +28,9 @@ public class JevProperties {
     /** Provider model identifier. When omitted, the selected provider's default is used. */
     private String model;
 
+    /** Vercel protocol: evaluation-v4 (default) or decision-v4. Read only for Vercel. */
+    private String vercelProtocol = "evaluation-v4";
+
     /** Cloudflare account ID. When omitted, Cloudflare reads {@code CLOUDFLARE_ACCOUNT_ID}. */
     private String accountId;
 
@@ -91,6 +94,9 @@ public class JevProperties {
     public void setModel(String model) {
         this.model = model;
     }
+
+    public String getVercelProtocol() { return vercelProtocol; }
+    public void setVercelProtocol(String vercelProtocol) { this.vercelProtocol = vercelProtocol; }
 
     public String getAccountId() {
         return this.accountId;

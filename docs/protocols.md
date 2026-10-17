@@ -3,7 +3,8 @@
 Originally checked on 2026-09-20; Netlify guidance checked on 2026-09-26;
 Venice and AI/ML API guidance checked on 2026-09-28; additional compatible
 services and Vercel public API guidance checked on 2026-10-01; TypeSafe images,
-Box, models, and API checked on 2026-10-16.
+Box, models, and API checked on 2026-10-16; OpenRouter, Vercel decision-model v4,
+and Cloudflare Jev 1.14 image contracts checked on 2026-10-17.
 This SDK is unofficial.
 
 ## OpenAI Decisions (since 0.3.0, checked 2026-10-07)
@@ -33,8 +34,8 @@ fixtures from actual provider calls.
 - Primitives: `choice`, `noul`, `score`; experimental Jev 1.14 `box`.
 - Responses: named `answers`, resolved `model`, snake_case token usage.
 - Experimental images: PNG/JPEG assets may be referenced from string values in
-  `state`, `instructions`, and `criteria`. Requests with images or a `box`
-  question require `TypeSafe-Danger-Zone-Images: true`.
+  `state`, `instructions`, and `criteria`. Direct TypeSafe requests with images
+  or a `box` question require `TypeSafe-Danger-Zone-Images: true`.
 
 Sources: [HTTP API](https://docs.typesafe.ai/api), [models](https://docs.typesafe.ai/models), [structured criteria](https://docs.typesafe.ai/primitives/advanced).
 
@@ -43,12 +44,11 @@ TypeSafe documents images for Jev 1.13 and 1.14; Box requires model
 currently points to stable `jev-1.13.0`, so the SDK default supports images but
 not Box. The model catalog's input table still says text, while the dedicated
 [Images guide](https://docs.typesafe.ai/images) documents image support; see
-the full contract and this SDK's explicit TypeSafe-only prototype boundary in
-[images and Box](images.md). TypeSafe warns that formats, limits, and accuracy
-may change. These claims do not establish support through gateways or other
-providers. The Java image/Box API is available since 0.4.0; the separate
-[validation record](validation.md#typesafe-images-and-box-040-2026-10-16)
-reports offline checks and a limited direct-TypeSafe live smoke.
+the full contract and provider boundaries in [images and Box](images.md).
+TypeSafe warns that formats, limits, and accuracy may change. Java image APIs
+first shipped for direct TypeSafe in 0.4.0; provider extensions are in 0.5.0.
+See [validation](validation.md) for offline coverage and provider-specific live
+status.
 
 Netlify AI Gateway documents Jev through this TypeSafe API rather than a
 separate Java wire format. It supplies `TYPESAFE_API_KEY` and
@@ -86,19 +86,21 @@ counts. Provider-specific limits remain the application's responsibility.
 
 ## Vercel AI Gateway
 
-Vercel now documents two public HTTP formats:
+Vercel documents a TypeSafe-compatible API, a public Decision API, and two AI
+SDK protocols:
 
-- TypeSafe-compatible `POST /typesafe/v1/systemone`: native `noul` and
-  snake_case usage. Configure the existing TypeSafe client with a Gateway key
-  and model `typesafe-ai/jev`; see the [Vercel guide](vercel-ai-gateway.md).
-- Evaluation `POST /v1/evaluate`: `boolean` / `probability` and the model in
-  the request body. This SDK does not implement that HTTP route directly.
+- TypeSafe-compatible `POST /typesafe/v1/systemone`: configure
+  `TypeSafeJevClient` with a Gateway key and model `typesafe-ai/jev`; see the
+  [Vercel guide](vercel-ai-gateway.md). The public docs do not specify image
+  asset or Box support for this route, so this SDK does not claim it.
+- Public `POST /v1/evaluate`: `boolean` / `probability` and the model in the
+  request body. This SDK does not implement that HTTP route directly.
+- Decision-model v4: `POST /v4/ai/decision-model`. The opt-in
+  `VercelJevClient.Protocol.DECISION_V4` sends PNG/JPEG file parts in shared
+  ordered state, and supports Choice, Score, and Noul, not Box.
 
-Sources: [TypeSafe-compatible API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe),
-[public evaluation API](https://vercel.com/docs/ai-gateway/modalities/evaluation).
-
-The existing `VercelJevClient` / Spring `jev.provider=vercel` still uses the
-following AI SDK evaluation-model v4 protocol:
+The existing `VercelJevClient` / Spring `jev.provider=vercel` retains its
+evaluation-model v4 default:
 
 - `POST https://ai-gateway.vercel.sh/v4/ai/evaluation-model`
 - `Authorization: Bearer <AI_GATEWAY_API_KEY>`
@@ -106,19 +108,25 @@ following AI SDK evaluation-model v4 protocol:
 - `ai-gateway-auth-method: api-key`
 - `ai-evaluation-model-specification-version: 4`
 - `ai-model-id: typesafe-ai/jev`
-- Body: `state`, named `questions`; the model travels in a header.
+- Body: JSON `state`, named `questions`; no file-part representation.
 
-This adapter targets the Vercel AI SDK evaluation protocol, not the public
-`/v1/evaluate` route, Chat Completions, or Responses. Changing only its endpoint
-does not change its headers or body format. Protocol changes can require an
-adapter update. A Vercel key may be valid while the account cannot make
-requests (for example, payment verification).
+Opt-in decision-model v4 uses `ai-decision-model-specification-version: 4`,
+`ai-model-id`, and `stateParts`. A file part has `type: "file"`, `mediaType`,
+and tagged data `{type: "data", data: <base64>}`. This protocol supports images
+in state only; instructions and criteria remain JSON input. The Gateway's
+published question support and response schema omit Box. The old and new v4
+protocols have different headers, endpoints, request bodies, and response
+contracts; changing only the URL cannot convert one to the other.
 
-Reference implementation pinned to Vercel AI commit `20dd00abba618d5a516e0fee40ccd3e18a2bd1fb`:
+Vercel 1.14 image availability is documented, but a direct HTTP verification call
+returned HTTP 403 without a successful inference result. Treat live success as unverified. OpenRouter
+and Cloudflare likewise have offline protocol coverage only because credentials
+were unavailable.
 
-- [Gateway transport and schema](https://github.com/vercel/ai/blob/20dd00abba618d5a516e0fee40ccd3e18a2bd1fb/packages/gateway/src/gateway-evaluation-model.ts)
-- [TypeSafe evaluation mapping](https://github.com/vercel/ai/blob/20dd00abba618d5a516e0fee40ccd3e18a2bd1fb/packages/typesafe-ai/src/typesafe-ai-evaluation-model.ts)
-- [Official model listing](https://vercel.com/ai-gateway/models/jev)
+Sources checked 2026-10-17: [TypeSafe-compatible API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe),
+[Vercel Jev 1.14 image support](https://vercel.com/changelog/typesafe-ais-jev-1-14-is-now-available-on-ai-gateway),
+[Gateway decision model at source commit `fce9210`](https://github.com/vercel/ai/blob/fce9210c6405c0ad8452fee3f50717e8ea910b97/packages/gateway/src/gateway-decision-model.ts),
+[Gateway decision-model tests](https://github.com/vercel/ai/blob/fce9210c6405c0ad8452fee3f50717e8ea910b97/packages/gateway/src/gateway-decision-model.test.ts).
 
 | Meaning | Direct | Gateway | Java |
 | --- | --- | --- | --- |
@@ -136,6 +144,11 @@ No score normalization, confidence inference, or probability renormalization occ
 - `Authorization: Bearer <OPENROUTER_API_KEY>`
 - Default model: `typesafe/jev-1.13`; body includes `model`, `state`, `questions`.
 - Native `noul`, `choice`, and `score` answers; snake_case `input_tokens` / `output_tokens`.
+- Since 0.5.0, experimental PNG/JPEG assets may be referenced in state,
+  instructions, or criteria; `box` questions are supported with Jev 1.14.
+- Pin `.model("typesafe/jev-1.14")` for Box. Images become inline
+  `image_url` parts at each reference; repeated references count against the
+  32 MiB encoded request limit.
 - Choice/Score probabilities and confidence are optional. Score legend, model,
   usage, response id and provider are optional. Metadata including `usage.cost`
   is preserved in the raw response without fabricating missing values.
@@ -143,25 +156,37 @@ No score normalization, confidence inference, or probability renormalization occ
   null. Score levels cannot be null. Noul criteria need both sides; two null
   descriptions are encoded as omitted criteria, as in the official provider.
 
-Sources: [official Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request),
+Sources: [multimodal Decisions](https://openrouter.ai/docs/guides/community/multimodal-decisions),
+[Box questions](https://openrouter.ai/docs/guides/community/jev#box-questions),
+[official Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request),
 [official schema at 1b22b05](https://github.com/OpenRouterTeam/ai-sdk-provider/blob/1b22b05352cb0f9243a6c3fdd326038dd3705544/src/evaluation/schemas.ts),
 [official mapping](https://github.com/OpenRouterTeam/ai-sdk-provider/blob/1b22b05352cb0f9243a6c3fdd326038dd3705544/src/evaluation/index.ts).
-This is an alpha API. OpenRouter live inference has not been tested in this
-development account; protocol tests use a local HTTP server and fixtures.
+This is an alpha API. Image and Box request/response contracts have offline
+fixture coverage; live OpenRouter inference has not been verified because
+credentials were unavailable.
 
 ## Cloudflare (since 0.2.0)
 
 - `POST https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run`
 - Bearer `CLOUDFLARE_API_TOKEN`, account from `CLOUDFLARE_ACCOUNT_ID` or builder/Spring configuration.
 - Default model `typesafe/jev`; request `{model, input: {state, questions}}`.
+- Since 0.5.0, experimental PNG/JPEG assets are placed in `input.assets`; image
+  references may appear in state, instructions, or criteria. `box` questions
+  are supported with `.model("typesafe/jev-1.14.0")`.
+- Cloudflare's Jev 1.14 route uses TypeSafe asset fields inside Cloudflare's
+  `input` wrapper. The SDK does not send TypeSafe's danger-zone header to
+  Cloudflare.
 - Direct TypeSafe-shaped answers and Cloudflare `{success: true, result: ...}` envelopes are decoded; the original body remains in `rawResponse()`.
 - A declared `success: false` is an error, never a successful evaluation.
 - This is third-party model access through Cloudflare, not a claim of native Jev weight hosting.
 
-Sources: [Cloudflare Jev catalog](https://developers.cloudflare.com/ai/models/typesafe/jev/),
+Sources: [Cloudflare Jev 1.14 image and Box contract](https://developers.cloudflare.com/ai/models/typesafe/jev-1.14.0/),
+[Cloudflare Jev catalog](https://developers.cloudflare.com/ai/models/typesafe/jev/),
 [REST API and token permissions](https://developers.cloudflare.com/ai-gateway/usage/rest-api/).
 Account > Workers AI > Read permission is required even for the third-party Jev model.
-Only an AI Gateway management permission is insufficient. Live Cloudflare inference has not been verified.
+Only an AI Gateway management permission is insufficient. Cloudflare documents
+image and Box support for Jev 1.14; this SDK has offline fixtures only and live
+inference remains unverified because credentials were unavailable.
 
 ## URL configuration
 

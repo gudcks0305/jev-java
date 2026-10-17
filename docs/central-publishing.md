@@ -51,10 +51,10 @@ tag, not a branch. The workflow rejects branch refs, non-version tags, a POM
 version mismatch, and tags without an existing public GitHub Release before
 reading Central credentials or importing the signing key.
 
-For example, after the `v0.4.0` release is ready:
+For example, after the `v0.5.0` release is ready:
 
 ```sh
-gh workflow run central.yml --ref v0.4.0 -f operation=publish
+gh workflow run central.yml --ref v0.5.0 -f operation=publish
 ```
 
 Publish overrides `central.auto-publish=true` and

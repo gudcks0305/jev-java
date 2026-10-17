@@ -39,11 +39,12 @@ public abstract class AbstractJevClient implements JevClient {
         values.put("Authorization", "Bearer " + config.apiKey);
         values.put("Content-Type", "application/json");
         values.put("Accept", "application/json");
-        values.put("User-Agent", "jev-java/0.4.0");
-        if (format == WireFormat.VERCEL) {
+        values.put("User-Agent", "jev-java/0.5.0");
+        if (format == WireFormat.VERCEL || format == WireFormat.VERCEL_DECISION) {
             values.put("ai-gateway-protocol-version", "0.0.1");
             values.put("ai-gateway-auth-method", "api-key");
-            values.put("ai-evaluation-model-specification-version", "4");
+            values.put(format == WireFormat.VERCEL_DECISION
+                    ? "ai-decision-model-specification-version" : "ai-evaluation-model-specification-version", "4");
             values.put("ai-model-id", model);
         }
         this.headers = Map.copyOf(values);
@@ -58,8 +59,13 @@ public abstract class AbstractJevClient implements JevClient {
             Objects.requireNonNull(question, "Question cannot be null");
             if (indexed.putIfAbsent(question.id(), question) != null) throw new IllegalArgumentException("Duplicate question id");
         }
-        return executeAsync(() -> EvaluationCodec.request(state, indexed, model, format),
+        return executeAsync(() -> encodeRequest(state, indexed),
                 response -> EvaluationCodec.response(response, indexed, model, format));
+    }
+
+    /** Provider-specific input wrappers can override encoding while retaining shared lifecycle. */
+    protected JsonNode encodeRequest(Object state, Map<String, Question<?>> questions) {
+        return EvaluationCodec.request(state, questions, model, format);
     }
 
     /** Configured model for provider-specific request encoders. */

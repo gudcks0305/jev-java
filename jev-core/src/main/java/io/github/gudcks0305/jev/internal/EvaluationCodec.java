@@ -17,18 +17,18 @@ public final class EvaluationCodec {
     }
 
     public static ObjectNode request(Object state, Map<String, Question<?>> questions, String model, WireFormat format) {
-        if (format != WireFormat.TYPESAFE && questions.values().stream().anyMatch(BoxQuestion.class::isInstance)) {
-            throw new IllegalArgumentException("Box questions require the TypeSafe wire format");
+        if (!supportsBoxes(format) && questions.values().stream().anyMatch(BoxQuestion.class::isInstance)) {
+            throw new IllegalArgumentException("Box questions require TypeSafe, OpenRouter, or Cloudflare");
         }
         JevInput imageInput = state instanceof JevInput value ? value : null;
-        if (imageInput != null && format != WireFormat.TYPESAFE) {
-            throw new IllegalArgumentException("Image assets require the TypeSafe wire format");
+        if (imageInput != null && !supportsBoxes(format)) {
+            throw new IllegalArgumentException("Image inputs require TypeSafe, OpenRouter, or Cloudflare");
         }
         if (imageInput == null && questions.values().stream().anyMatch(BoxQuestion.class::isInstance)) {
             throw new IllegalArgumentException("Box questions require an image attached through JevInput");
         }
         if (format == WireFormat.OPENAI) return OpenAiDecisionCodec.request(state, questions, model);
-        boolean gateway = format == WireFormat.VERCEL;
+        boolean gateway = format == WireFormat.VERCEL || format == WireFormat.VERCEL_DECISION;
         boolean cloudflare = format == WireFormat.CLOUDFLARE;
         ObjectNode body = JsonSupport.object();
         ObjectNode input = body;
@@ -36,7 +36,14 @@ public final class EvaluationCodec {
             body.put("model", model);
             input = body.putObject("input");
         }
-        input.set("state", imageInput == null ? JsonSupport.content(state, "State") : imageInput.state());
+        if (format == WireFormat.VERCEL_DECISION) {
+            JsonNode value = JsonSupport.materialize(JsonSupport.content(state, "State"));
+            ObjectNode part = input.putArray("stateParts").addObject();
+            if (value.isTextual()) part.put("type", "text").set("text", value);
+            else part.put("type", "json").set("value", value);
+        } else {
+            input.set("state", imageInput == null ? JsonSupport.content(state, "State") : imageInput.state());
+        }
         if (!gateway && !cloudflare) body.put("model", model);
         ObjectNode encoded = input.putObject("questions");
         questions.forEach((id, question) -> {
@@ -60,42 +67,12 @@ public final class EvaluationCodec {
                 }
             }
         });
-        if (imageInput != null) {
-            // Embedded POJONodes serialize to JSON strings/objects too. Inspect their
-            // actual values rather than treating them as opaque reference-free nodes.
-            ObjectNode materialized = (ObjectNode) JsonSupport.materialize(body);
-            attachImages(materialized, imageInput, (ObjectNode) materialized.path("questions"));
-            return materialized;
-        }
+        if (imageInput != null) return ImageRequestCodec.encode(body, imageInput, format);
         return body;
     }
 
-    private static void attachImages(ObjectNode body, JevInput input, ObjectNode questions) {
-        long base64Bytes = input.images().stream().mapToLong(image -> image.dataBase64().length()).sum();
-        if (base64Bytes > 32 * 1024 * 1024) {
-            throw new IllegalArgumentException("Image request body exceeds 32 MiB");
-        }
-        ObjectNode assets = body.putObject("assets");
-        for (JevImage image : input.images()) {
-            boolean referenced = references(body.path("state"), image.reference());
-            for (JsonNode question : questions) {
-                referenced |= references(question.path("instructions"), image.reference())
-                        || references(question.path("criteria"), image.reference());
-            }
-            if (!referenced) throw new IllegalArgumentException("Every image must be referenced in state, instructions, or criteria");
-            assets.putObject(image.reference()).put("type", "image").put("format", image.format())
-                    .put("data_base64", image.dataBase64());
-        }
-        if (JsonSupport.utf8Bytes(body).length > 32 * 1024 * 1024) {
-            throw new IllegalArgumentException("Image request body exceeds 32 MiB");
-        }
-    }
-
-    private static boolean references(JsonNode content, String reference) {
-        if (content.isTextual()) return content.textValue().contains(reference);
-        // Iterating a JSON object visits values only: API references never replace keys.
-        for (JsonNode child : content) if (references(child, reference)) return true;
-        return false;
+    private static boolean supportsBoxes(WireFormat format) {
+        return format == WireFormat.TYPESAFE || format == WireFormat.OPENROUTER || format == WireFormat.CLOUDFLARE;
     }
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, boolean gateway) {
@@ -104,8 +81,8 @@ public final class EvaluationCodec {
 
     public static Evaluation response(JsonNode body, Map<String, Question<?>> questions, String requestedModel, WireFormat format) {
         if (format == WireFormat.OPENAI) return OpenAiDecisionCodec.response(body, questions);
-        boolean gateway = format == WireFormat.VERCEL;
-        boolean optionalProbabilities = format == WireFormat.VERCEL || format == WireFormat.OPENROUTER;
+        boolean gateway = format == WireFormat.VERCEL || format == WireFormat.VERCEL_DECISION;
+        boolean optionalProbabilities = gateway || format == WireFormat.OPENROUTER;
         require(body != null && body.isObject(), "Expected an object response");
         JsonNode normalized = body;
         if (format == WireFormat.CLOUDFLARE && isCloudflareEnvelope(body)) {
@@ -117,6 +94,15 @@ public final class EvaluationCodec {
         JsonNode payload = normalized;
         JsonNode wireAnswers = payload.path("answers");
         require(wireAnswers.isObject() && wireAnswers.size() == questions.size(), "Answer ids do not match requested questions");
+        if (format == WireFormat.VERCEL_DECISION) {
+            boolean refused = false;
+            for (String id : questions.keySet()) {
+                JsonNode answer = wireAnswers.path(id);
+                require(answer.isObject(), "Missing or invalid answer");
+                if (answer.path("type").isTextual() && answer.path("type").textValue().equals("refusal")) refused = true;
+            }
+            if (refused) throw new JevException(JevException.Kind.REFUSAL, "Vercel refused an evaluation question");
+        }
         Map<String, Answer> answers = new LinkedHashMap<>();
         questions.forEach((id, question) -> {
             JsonNode wire = wireAnswers.path(id);
@@ -124,7 +110,7 @@ public final class EvaluationCodec {
             JsonNode confidence = gateway ? payload.path("providerMetadata").path("typesafe").path("confidence").path(id)
                     : wire.path("confidence");
             if (question instanceof BoxQuestion) {
-                require(format == WireFormat.TYPESAFE, "Box answers require the TypeSafe wire format");
+                require(supportsBoxes(format), "Box answers require TypeSafe, OpenRouter, or Cloudflare");
                 require(wire.path("type").isTextual() && wire.path("type").textValue().equals("box"), "Answer type mismatch");
                 JsonNode box = wire.path("box");
                 require(box.isObject(), "Missing or invalid box");
@@ -207,11 +193,11 @@ public final class EvaluationCodec {
     }
     private static void validateOpenRouterCriteria(Question<?> question) {
         if (question instanceof ChoiceQuestion<?> choice) {
-            choice.criteria().elements().forEachRemaining(value -> requireCriterion(value, true));
+            JsonSupport.materialize(choice.criteria()).elements().forEachRemaining(value -> requireCriterion(value, true));
         } else if (question instanceof ScoreQuestion score) {
-            score.criteria().elements().forEachRemaining(value -> requireCriterion(value, false));
+            JsonSupport.materialize(score.criteria()).elements().forEachRemaining(value -> requireCriterion(value, false));
         } else if (question instanceof NoulQuestion noul && noul.criteria() != null) {
-            JsonNode criteria = noul.criteria();
+            JsonNode criteria = JsonSupport.materialize(noul.criteria());
             JsonNode yes = criteria.path("true");
             JsonNode no = criteria.path("false");
             if (yes.isNull() && no.isNull()) return;

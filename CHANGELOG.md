@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.0 — 2026-10-17
+
+- OpenRouter and Cloudflare clients now accept `JevInput` images and
+  `BoxQuestion`. OpenRouter expands references to inline image parts; Cloudflare
+  sends native assets under `input`. Provider-specific model IDs remain explicit.
+- Vercel's current Decision v4 protocol is available through
+  `VercelJevClient.Protocol.DECISION_V4` and `VercelDecisionInput` text/JSON/image
+  state parts. Existing evaluation-v4 behavior remains the default. Spring
+  applications can select `jev.vercel-protocol=decision-v4`.
+- Vercel Decision refusals fail the whole evaluation with `REFUSAL`; Box remains
+  unsupported by Vercel Gateway. Images in Vercel questions/criteria are not
+  inferred from plain JSON or Jev asset references.
+- Repeated inline OpenRouter images count toward the complete 32 MiB request
+  limit. Image normalization preserves caller data, reference order, metadata,
+  numeric precision, and the existing cancellation/transport ownership rules.
+
+Provider image features remain experimental. OpenRouter/Cloudflare verification
+uses official contracts and offline tests; credentials were unavailable.
+A synthetic Vercel Decision image request returned HTTP 403, so successful
+Vercel live inference remains unverified. See [release notes](docs/releases/0.5.0.md).
+
 ## 0.4.0 — 2026-10-17
 
 - Experimental TypeSafe image inputs: `JevImage` and `JevInput` attach PNG/JPEG

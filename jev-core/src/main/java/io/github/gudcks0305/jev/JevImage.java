@@ -8,7 +8,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * An immutable experimental TypeSafe image asset. Put {@link #reference()} in state,
+ * An immutable experimental Jev image asset. Put {@link #reference()} in state,
  * instructions, or criteria, then attach this image with {@link JevInput#withImages}.
  * The caller prepares upright, still PNG/JPEG pixels; the server validates dimensions
  * and image contents. No resizing, URL fetching, or EXIF rotation is performed.
@@ -25,7 +25,7 @@ public final class JevImage {
             throw new IllegalArgumentException("Image format must be png, jpg, or jpeg");
         }
         if (data.length == 0 || data.length > MAX_BYTES) {
-            throw new IllegalArgumentException("Image must contain 1 to 16 MiB of bytes");
+            throw new IllegalArgumentException("Image must contain between 1 byte and 16 MiB");
         }
         this.format = format;
         this.dataBase64 = Base64.getEncoder().encodeToString(data);

@@ -1,26 +1,37 @@
-# Experimental TypeSafe images and Box
+# Experimental images and Box
 
-**Since 0.4.0.** The Java APIs below expose TypeSafe’s experimental image features.
+Jev image input and Box judgments are experimental. TypeSafe describes them as
+prototype features whose formats, limits, answers, and accuracy may change.
+Use them to explore ideas; validate carefully before relying on results.
 
-Jev 1.13 and 1.14 accept still PNG/JPEG images through TypeSafe's System One
-API. Box questions require Jev 1.14. TypeSafe marks both features experimental
-and warns that request formats, answers, limits, and accuracy can change. Use
-them for prototypes, not production-critical decisions. The model catalog still
-lists text input, while its dedicated [Images guide](https://docs.typesafe.ai/images)
-explicitly documents image input for both releases; treat the dedicated guide
-as the image contract and recheck it before upgrading.
+The `JevImage` and `JevInput` APIs arrived in 0.4.0 for TypeSafe. Version 0.5.0
+adds image and Box support to OpenRouter and Cloudflare, plus a separate image
+state API for Vercel's decision-model v4 protocol. Existing provider defaults
+and Vercel's default protocol stay unchanged.
 
-This SDK exposes image input only on `TypeSafeJevClient`. OpenAI, OpenRouter,
-Vercel, and Cloudflare have different wire formats; this feature does not enable
-images or Box for those clients or compatible gateways.
+| Client and protocol | Images | Box | Model for Jev 1.14 |
+| --- | --- | --- | --- |
+| `TypeSafeJevClient` | State, instructions, criteria | Yes | `jev-1.14.0` |
+| `OpenRouterJevClient` | State, instructions, criteria | Yes | `typesafe/jev-1.14` |
+| `CloudflareJevClient` | State, instructions, criteria | Yes | `typesafe/jev-1.14.0` |
+| `VercelJevClient` with `DECISION_V4` | State only | No | `typesafe-ai/jev-1.14.0` |
 
-## Add images to a request
+OpenAI's existing native Decisions image input remains separate and uses
+`DecisionInput.ImagePart`; the new `JevImage` API does not add Box to OpenAI.
+Do not infer support for other compatible gateways from these clients.
+The listed routes have documented contracts and offline tests; see the live
+verification limits below. The
+Vercel-compatible `/typesafe/v1/systemone` route has not been verified for
+image assets or Box.
 
-Create an image from a local path or byte array, then put its generated
-reference in a string value in state, instructions, or criteria. Attach the
-image with `JevInput.withImages` and pass that input as the `state` argument to
-the existing `evaluate` or `evaluateAsync` API. Record mapping and the Reactor
-facade accept the same input.
+## TypeSafe, OpenRouter, and Cloudflare
+
+Create a `JevImage` from PNG/JPEG bytes or a local path, then attach it to the
+state passed to the usual `evaluate` or `evaluateAsync` method. The same state
+works with Java record mapping and the Reactor API. Put `image.reference()` in a
+string value in state, question instructions, or criteria. References may also
+appear inside longer strings. Object keys, such as question IDs and Choice
+labels, remain unchanged.
 
 ```java
 import io.github.gudcks0305.jev.BoxQuestion;
@@ -34,8 +45,7 @@ import java.util.Map;
 public final class ImageExample {
     public static void main(String[] args) throws Exception {
         var photo = JevImage.fromPath(Path.of("kitchen.jpg"), "jpg");
-        var input = JevInput.withImages(
-                Map.of("photo", photo.reference()), photo);
+        var input = JevInput.withImages(Map.of("photo", photo.reference()), photo);
         var visible = NoulQuestion.of("mug_visible", "Is there a coffee mug in `photo`?");
         var mug = BoxQuestion.of("mug", "The coffee mug in `photo`");
 
@@ -52,60 +62,102 @@ public final class ImageExample {
 }
 ```
 
-`JevImage.fromPath(Path, format)` throws `IOException`; `fromBytes(byte[],
-format)` accepts `png`, `jpg`, or `jpeg`. File paths are not sent. Image bytes
-are sent as base64 JSON assets associated with generated UUID references.
-`JevInput` deduplicates attached images by reference. Every attached image must
-be referenced in a string value in state, question instructions, or criteria.
-References inside longer strings are replaced too. Put references in values,
-not object keys such as question IDs or Choice labels.
+Pin the provider model when using Box. Examples: `.model("jev-1.14.0")` for
+TypeSafe, `.model("typesafe/jev-1.14")` for OpenRouter, and
+`.model("typesafe/jev-1.14.0")` for Cloudflare. Their defaults remain
+unchanged and may resolve to Jev 1.13. Image requests through direct TypeSafe
+send `TypeSafe-Danger-Zone-Images: true`; OpenRouter and Cloudflare use their
+own request formats and do not send this TypeSafe-only header.
 
-The request opts into TypeSafe's experimental feature automatically by sending
-`TypeSafe-Danger-Zone-Images: true` whenever it contains images or a Box
-question. The SDK sends JSON assets; it does not use multipart uploads, fetch
-remote URLs, resize images, or apply EXIF rotation. Prepare upright, still PNG or
-JPEG images before sending. No `jev.*` Spring property is required; select
-`jev.provider: typesafe` and configure the model as `jev.model: jev-1.14.0` for
-Box requests. The default `jev-latest` currently resolves to Jev 1.13, which
-supports images but not Box.
+For TypeSafe and Cloudflare, images are sent once as base64 JSON assets. For
+OpenRouter, each reference becomes an inline `image_url` data URL at its use
+site. In OpenRouter requests, an exact reference becomes an image part; a
+reference inside text becomes ordered text and image parts. Repeated references
+therefore repeat the image data and count toward the 32 MiB request cap. All
+attached images must be used in state, instructions, or criteria.
+
+`JevImage.fromPath(Path, format)` throws `IOException`; `fromBytes(byte[],
+format)` accepts `png`, `jpg`, or `jpeg`. Paths are not sent. The SDK validates
+file bytes up to 16 MiB and the encoded request body up to 32 MiB. The TypeSafe
+image contract also limits dimensions to 280–1568 pixels per side, decoded
+image total/expanded request size to 32 MiB, and image formats to still PNG or
+JPEG. The server validates image decoding, dimensions, processed assets, and
+expanded size. Prepare pixels upright before sending: the SDK does not resize,
+fetch URLs, or rotate EXIF metadata. The API may reject a file that passes
+client-side byte checks.
 
 ## Box answers
 
-`BoxQuestion.of(id, instructions)` asks for one target. The target must be in an
-attached image, and the answer is always a box even if the target is absent.
-Pair Box with a `NoulQuestion` that asks whether the target exists, then ignore
-the box when that probability is low. A `BoxAnswer` exposes `box()` as
-`BoxCoordinates` (`top`, `bottom`, `left`, `right`); each edge is a fraction of
-image height or width in the range 0–1. Optional confidence stays absent when
-the provider omits it. Coordinates are not pixel values; multiply horizontal
-edges by image width and vertical edges by image height before drawing or
-cropping.
+`BoxQuestion.of(id, instructions)` locates one target in an attached image. A
+Box answer always contains coordinates, even when the target is absent. Pair a
+Box question with a Noul question that checks whether the target exists; ignore
+the coordinates when the probability is low.
 
-There is no `@JevBox` record annotation. Existing record annotations can classify
-the image-bearing state, but record mapping does not produce Box coordinates.
+`BoxAnswer.box()` returns `BoxCoordinates` with `top`, `bottom`, `left`, and
+`right` edges. Each edge is a fraction from 0 to 1. Multiply horizontal edges
+by image width and vertical edges by image height before drawing or cropping.
+`confidence()` is optional and remains absent if the provider omits it. No
+`@JevBox` record annotation exists; record mapping can classify image state but
+does not produce Box coordinates.
 
-## Limits and compatibility
+## Vercel decision-model v4
 
-The TypeSafe image guide currently sets these limits: PNG/JPEG still images,
-16 MiB per file, each side 280–1568 pixels, and 32 MiB for the JSON request,
-processed images together, and expanded request. Reusing one reference in
-several values sends the image once but counts each occurrence toward expanded
-size and image tokens. The SDK enforces the per-file and JSON body byte limits;
-the API checks dimensions, decoding, processed-image size, and expanded size.
-The server may reject an image even when its file bytes pass SDK validation.
+The existing Vercel evaluation-model v4 protocol does not define file inputs.
+Opt into the separate decision-model v4 protocol and pass a
+`VercelDecisionInput` as state:
 
-Image input is documented for Jev 1.13 and 1.14. Box requires the explicit
-`jev-1.14.0` model (or `jev-preview`, which is a moving alias); prefer the
-versioned model for reproducibility. `jev-latest` still points to stable Jev
-1.13 according to the current model catalog. Do not infer image or Box support
-for other providers from their shared question names or endpoint compatibility.
+```java
+import io.github.gudcks0305.jev.JevImage;
+import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.vercel.VercelDecisionInput;
+import io.github.gudcks0305.jev.vercel.VercelJevClient;
+import java.nio.file.Path;
 
-Adding Box to the sealed `Question` and `Answer` hierarchies may require updates
-to exhaustive `switch` expressions in application code.
+var image = JevImage.fromPath(Path.of("receipt.png"), "png");
+var input = VercelDecisionInput.builder()
+        .text("A product photo from a support ticket.")
+        .image(image)
+        .build();
+var red = NoulQuestion.of("red", "Is the image predominantly red?");
+try (var client = VercelJevClient.builder()
+        .protocol(VercelJevClient.Protocol.DECISION_V4)
+        .model("typesafe-ai/jev-1.14.0")
+        .build()) {
+    var result = client.evaluate(input, red);
+    System.out.println(result.answer(red).probability());
+}
+```
 
-Sources, checked 2026-10-16: [Images](https://docs.typesafe.ai/images),
-[Models](https://docs.typesafe.ai/models), [Box](https://docs.typesafe.ai/primitives/box),
-[API reference](https://docs.typesafe.ai/api).
+`VercelDecisionInput.Builder` accepts ordered `.text(String)`, `.json(Object)`,
+and `.image(JevImage)` state parts. Images are supported only in state, not in
+question instructions or criteria. Vercel decision-model v4 supports Choice,
+Score, and Noul questions; it does not support Box. `JevInput` is not accepted
+by this protocol.
 
-See [validation](validation.md#typesafe-images-and-box-040-2026-10-16)
-for offline coverage and the separate, limited live smoke result.
+The decision-model v4 request uses `/v4/ai/decision-model`, a
+`stateParts` array, and Vercel's `ai-decision-model-specification-version: 4`
+header. This differs from the default evaluation-model v4 wire format. The
+legacy evaluation protocol remains the default; see the [Vercel guide](vercel-ai-gateway.md)
+for Java and Spring configuration.
+
+## Contract and verification
+
+The model catalog currently maps `jev-latest` to stable `jev-1.13.0` and
+`jev-preview` to `jev-1.14.0`. Jev 1.13 and 1.14 accept images. Box requires
+Jev 1.14, so use a versioned model ID for reproducibility. TypeSafe's model
+table still lists text input, while the dedicated images guide documents image
+support; this SDK follows the dedicated images contract for the feature.
+
+OpenRouter and Cloudflare were implemented against their documented image and
+Box shapes using local protocol fixtures; live inference has not been verified
+because credentials were unavailable. Vercel request serialization is covered
+offline; successful live image inference is not claimed here. Direct TypeSafe
+validation is recorded in [validation](validation.md).
+
+Sources checked 2026-10-17: [TypeSafe Images](https://docs.typesafe.ai/images),
+[TypeSafe Models](https://docs.typesafe.ai/models), [TypeSafe Box](https://docs.typesafe.ai/primitives/box),
+[TypeSafe API](https://docs.typesafe.ai/api), [Cloudflare Jev 1.14](https://developers.cloudflare.com/ai/models/typesafe/jev-1.14.0/),
+[OpenRouter multimodal Decisions](https://openrouter.ai/docs/guides/community/multimodal-decisions),
+[OpenRouter Box](https://openrouter.ai/docs/guides/community/jev#box-questions),
+[Vercel Jev 1.14](https://vercel.com/changelog/typesafe-ais-jev-1-14-is-now-available-on-ai-gateway),
+[Vercel TypeSafe-compatible API](https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe).

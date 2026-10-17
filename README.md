@@ -9,8 +9,10 @@ Jev Java requires Java 17 or newer. The plain SDK uses JDK `HttpClient` and Jack
 
 If Jev Java helps your project, consider giving it a [star on GitHub](https://github.com/gudcks0305/jev-java) ⭐.
 
-**Version 0.4.0 adds experimental TypeSafe images and Box questions**. See the
-[image guide](docs/images.md) for usage and limits.
+**Version 0.5.0 extends the experimental image and Box APIs** to OpenRouter and
+Cloudflare, and adds opt-in image state support for Vercel decision-model v4.
+The core image API first appeared for direct TypeSafe in 0.4.0. See the
+[image guide](docs/images.md) for provider-specific setup and limits.
 
 Version 0.3.0 added OpenAI Decisions: text/image inputs, typed string/boolean
 choices, scoring, per-question refusals and request-level safety identifiers.
@@ -37,7 +39,7 @@ For direct TypeSafe access:
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-typesafe</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -53,7 +55,7 @@ Gradle Kotlin DSL:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("io.github.gudcks0305:jev-typesafe:0.4.0")
+    implementation("io.github.gudcks0305:jev-typesafe:0.5.0")
 }
 ```
 
@@ -178,47 +180,32 @@ Enum labels use `Enum.name()`. Add enum descriptions with `withDescriptions(Map.
 
 `evaluateAsync(state, questions...)` returns a cancellable `CompletableFuture<Evaluation>`. Reuse clients and close them when the application stops. Use blocking `evaluate()` only from blocking code.
 
-For Vercel's evaluation-model v4 protocol, construct
-`VercelJevClient.builder().build()` from `io.github.gudcks0305.jev.vercel`.
-Default models are `jev-latest` for direct TypeSafe and `typesafe-ai/jev` for
-that Vercel adapter; override either with `.model("...")`. Vercel also offers
-a public TypeSafe-compatible route usable with `TypeSafeJevClient`; see the
-[Vercel guide](docs/vercel-ai-gateway.md) for its explicit key, model, and URL.
+`VercelJevClient.builder().build()` keeps the evaluation-model v4 protocol by
+default. Opt into decision-model v4 with
+`.protocol(VercelJevClient.Protocol.DECISION_V4)` to send image state through
+Vercel Gateway. Default models remain `jev-latest` for direct TypeSafe and
+`typesafe-ai/jev` for Vercel. Vercel also offers a public TypeSafe-compatible
+route usable with `TypeSafeJevClient`; see the [Vercel guide](docs/vercel-ai-gateway.md)
+for its explicit key, model, and URL.
 
-## Experimental TypeSafe images and Box
+## Experimental images and Box
 
-**Since 0.4.0.** These APIs are experimental; existing provider defaults remain unchanged.
+**TypeSafe image APIs since 0.4.0; OpenRouter, Cloudflare, and Vercel
+decision-model v4 support since 0.5.0.** These APIs remain experimental;
+existing model defaults and the Vercel evaluation-model v4 protocol stay unchanged.
 
-The TypeSafe client supports experimental PNG/JPEG image input in Jev 1.13 and
-1.14. Jev 1.14 adds `BoxQuestion` for image localization. TypeSafe marks both
-features as prototypes whose request format, limits, answers, and accuracy may
-change. Image and Box support is available only through `TypeSafeJevClient`;
-see [images and Box](docs/images.md) for setup, limits, and provider boundaries.
+TypeSafe, OpenRouter, and Cloudflare clients accept `JevInput` with PNG/JPEG
+images. They support image references in state, instructions, and criteria, and
+support `BoxQuestion` with Jev 1.14. Pin `.model("jev-1.14.0")` for TypeSafe,
+`.model("typesafe/jev-1.14")` for OpenRouter, or
+`.model("typesafe/jev-1.14.0")` for Cloudflare. Defaults remain unchanged.
 
-```java
-import io.github.gudcks0305.jev.JevImage;
-import io.github.gudcks0305.jev.JevInput;
-import io.github.gudcks0305.jev.NoulQuestion;
-import io.github.gudcks0305.jev.typesafe.TypeSafeJevClient;
-import java.nio.file.Path;
-import java.util.Map;
-
-public final class ImageExample {
-    public static void main(String[] args) throws Exception {
-        var photo = JevImage.fromPath(Path.of("receipt.jpg"), "jpg");
-        var input = JevInput.withImages(Map.of("receipt", photo.reference()), photo);
-        var total = NoulQuestion.of("has_total", "Does `receipt` show a total?");
-        try (var client = TypeSafeJevClient.builder().build()) {
-            var result = client.evaluate(input, total);
-            System.out.println(result.answer(total).probability());
-        }
-    }
-}
-```
-
-Use `BoxQuestion` only with `.model("jev-1.14.0")`; current `jev-latest`
-resolves to Jev 1.13 and does not support Box. Image requests are explicitly
-opted into TypeSafe's experimental feature by the SDK.
+Vercel image input requires `VercelJevClient.Protocol.DECISION_V4` and a
+`VercelDecisionInput` state built from `.text(...)`, `.json(...)`, and
+`.image(...)`. It supports images in state only, and does not support Box. The
+default Vercel evaluation-model v4 protocol remains unchanged. TypeSafe labels
+image and Box features experimental. See [images and Box](docs/images.md) for
+a Java example, limits, and protocol boundaries.
 
 ## OpenRouter and custom endpoints
 
@@ -246,14 +233,15 @@ public final class OpenRouterQuickstart {
 For proxies, `.baseUrl(URI)` changes the origin/path prefix and still appends the
 provider's endpoint suffix. `.endpoint(URI)` instead uses the **complete URL
 exactly as supplied**, including its path and optional query. Do not configure
-both. These options apply to all four clients and do not change the selected
+both. These options do not change the selected
 provider's authentication or wire format.
 
 | Client | Default model | Path appended to `baseUrl` |
 | --- | --- | --- |
 | `TypeSafeJevClient` | `jev-latest` | `/v1/systemone` |
 | `OpenRouterJevClient` | `typesafe/jev-1.13` | `/api/alpha/decisions` |
-| `VercelJevClient` | `typesafe-ai/jev` | `/v4/ai/evaluation-model` |
+| `VercelJevClient` (default `EVALUATION_V4`) | `typesafe-ai/jev` | `/v4/ai/evaluation-model` |
+| `VercelJevClient` (`DECISION_V4`) | `typesafe-ai/jev` | `/v4/ai/decision-model` |
 | `CloudflareJevClient` | `typesafe/jev` | `/accounts/{accountId}/ai/run` (default base includes `/client/v4`) |
 
 Example Spring configuration for an OpenRouter-compatible proxy:
@@ -295,7 +283,7 @@ The starter includes five provider adapters and defaults to TypeSafe over JDK `H
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-boot-starter</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -317,7 +305,7 @@ The base starter does not pull in WebFlux. Add the optional module and select it
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-webflux</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -419,6 +407,7 @@ public final class JevClients implements AutoCloseable {
 | --- | --- | --- |
 | `jev.enabled` | `true` | Enable auto-configuration |
 | `jev.provider` | `typesafe` | `typesafe`, `openrouter`, `vercel`, `cloudflare`, or `openai` |
+| `jev.vercel-protocol` | `evaluation-v4` | For Vercel: opt into `decision-v4` for image state parts |
 | `jev.transport` | `jdk` | `jdk` or `webclient` |
 | `jev.api-key` | provider environment variable | Explicit key override |
 | `jev.model` | provider default | Model ID |
@@ -435,6 +424,9 @@ public final class JevClients implements AutoCloseable {
 The OpenAI compatibility adapter adds `REFUSAL`: one refused question fails the
 whole evaluation without returning partial answers or substituting a value.
 Its text-only limits also apply to record schemas; `@JevLabels` is unsupported.
+
+Vercel decision-model v4 also fails the whole evaluation with `REFUSAL` when
+any question is refused. Its images belong in explicit state parts; Box is unsupported.
 
 Only explicit **429, 529, 502, 503, and 504** responses retry. Connection failures and ambiguous timeouts do not automatically retry because the service may already have processed and billed the request. There is no automatic provider fallback.
 
@@ -474,9 +466,9 @@ evaluate their judgments and thresholds separately. See [validation evidence](do
 for the exact offline fixture coverage. Vercel's [public TypeSafe-compatible
 route](docs/vercel-ai-gateway.md) is documented separately from its v4 adapter.
 
-TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter and Cloudflare use official contracts and local HTTP tests; live inference has not been verified because their credentials were unavailable. Vercel Gateway returned `403 customer_verification_required` during live verification, so its adapter is covered by offline protocol tests but successful live inference has not been confirmed. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
+TypeSafe direct calls have been exercised with the JDK transport, WebClient transport, and Spring Boot auto-configuration. OpenRouter and Cloudflare use official contracts and local HTTP tests; live inference has not been verified because their credentials were unavailable. A Vercel decision-model v4 image request returned HTTP 403 without a successful inference result; the reason is unknown, so successful live inference is unverified. See [provider contracts and protocol limits](docs/protocols.md) and [validation evidence](docs/validation.md).
 
-The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. The eight Java examples in this README were also compiled with `--release 17`.
+The test matrix covers Java 17, 21, and 25 with Spring Boot 3.5.16 and 4.1.1. Offline tests use local servers and fakes and require no API keys. Java examples in this README are compiled with `--release 17`.
 
 ## Build and run examples from source
 
@@ -492,7 +484,7 @@ cd jev-java
   -Dexec.args=typesafe
 ```
 
-Use `RecordExample`, `WebClientExample`, or `SpringBootExample` for those integration paths. Passing `openrouter`, `vercel`, or `cloudflare` selects that provider. `Quickstart`, `RecordExample`, and `WebClientExample` also accept `openai` with `OPENAI_API_KEY`. A Vercel `403 customer_verification_required` response confirms only the account check, not successful Jev inference.
+Use `RecordExample`, `WebClientExample`, or `SpringBootExample` for those integration paths. Passing `openrouter`, `vercel`, or `cloudflare` selects that provider; Vercel uses evaluation-model v4 by default. `Quickstart`, `RecordExample`, and `WebClientExample` also accept `openai` with `OPENAI_API_KEY`. A Vercel decision-model v4 request returned HTTP 403 without a successful inference result, so live success is unverified.
 
 ## Project links
 
