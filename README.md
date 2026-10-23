@@ -18,9 +18,9 @@ Version 0.3.0 added OpenAI Decisions: text/image inputs, typed string/boolean
 choices, scoring, per-question refusals and request-level safety identifiers.
 The existing Jev question and record interfaces remain available; see the
 [OpenAI guide](docs/openai-decisions.md) for both APIs and their boundaries.
-OpenAI's Decisions API is GA; its contract was checked on 2026-10-23. Java
-support for GA additions is in this unreleased source checkout; published
-`0.5.0` artifacts do not include those additions yet.
+**Version 0.6.0 adds OpenAI Decisions GA support:** JSON input, conversation/tool
+history, multipart questions and prompt-cache controls. The official contract
+was checked on 2026-10-23; see [release notes](docs/releases/0.6.0.md).
 
 ## Installation
 
@@ -42,7 +42,7 @@ For direct TypeSafe access:
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-typesafe</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -58,7 +58,7 @@ Gradle Kotlin DSL:
 repositories { mavenCentral() }
 
 dependencies {
-    implementation("io.github.gudcks0305:jev-typesafe:0.5.0")
+    implementation("io.github.gudcks0305:jev-typesafe:0.6.0")
 }
 ```
 
@@ -286,7 +286,7 @@ The starter includes five provider adapters and defaults to TypeSafe over JDK `H
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-boot-starter</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -308,7 +308,7 @@ The base starter does not pull in WebFlux. Add the optional module and select it
 <dependency>
   <groupId>io.github.gudcks0305</groupId>
   <artifactId>jev-spring-webflux</artifactId>
-  <version>0.5.0</version>
+  <version>0.6.0</version>
 </dependency>
 ```
 
@@ -426,8 +426,8 @@ public final class JevClients implements AutoCloseable {
 
 The OpenAI compatibility adapter adds `REFUSAL`: one refused question fails the
 whole evaluation without returning partial answers or substituting a value.
-The unreleased GA update also accepts JSON state and structured instructions,
-including `@JevLabels`; published 0.5.0 retains the earlier text-only limits.
+Since 0.6.0, it also accepts JSON state and structured instructions, including
+`@JevLabels`; 0.5.0 retains the earlier text-only limits.
 
 Vercel decision-model v4 also fails the whole evaluation with `REFUSAL` when
 any question is refused. Its images belong in explicit state parts; Box is unsupported.

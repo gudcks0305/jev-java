@@ -15,8 +15,8 @@ OpenAI's API is generally available; its contract was checked on 2026-10-23.
 The current contract supports text, images, JSON and conversation/tool history,
 plus cache controls, up to 400 questions and 128 images per request. See the
 [GA guide](https://developers.openai.com/api/docs/guides/decisions) for the full
-shape. This source checkout includes Java GA support, but the published
-`0.5.0` artifacts do not include it yet.
+shape. Java GA support is included starting with 0.6.0;
+`0.5.0` artifacts do not include these additions.
 
 The native `decide` API returns typed predicate, choice and score answers,
 ordered by question, with individual refusals. Usage and unknown response

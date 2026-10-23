@@ -6,11 +6,8 @@ hosting. Treat its judgments and thresholds as application inputs and evaluate
 them against your own examples.
 
 The `jev-openai` adapter first shipped in 0.3.0 with the public-beta subset.
-This source checkout contains support for the GA contract described below, but
-that support is **unreleased**. Published `jev-openai:0.5.0` and
-`jev-spring-boot-starter:0.5.0` artifacts do not include these GA additions.
-Build from this checkout to use them; don't assume the current Maven artifact
-has them.
+Version 0.6.0 adds the GA contract described below. Use `jev-openai:0.6.0`
+or `jev-spring-boot-starter:0.6.0`; 0.5.0 artifacts do not include these additions.
 
 Sources checked 2026-10-23: [Decisions guide](https://developers.openai.com/api/docs/guides/decisions),
 [create reference](https://developers.openai.com/api/reference/resources/decisions/methods/create),

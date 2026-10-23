@@ -2,14 +2,14 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
-## OpenAI Decisions GA — unreleased (checked 2026-10-23)
+## OpenAI Decisions GA 0.6.0 (checked 2026-10-23)
 
 The [official guide](https://developers.openai.com/api/docs/guides/decisions)
 and [create reference](https://developers.openai.com/api/reference/resources/decisions/methods/create)
 were checked for shared JSON input, role/tool history, hosted images,
 multipart question instructions and explicit prompt-cache controls.
 The detailed reference also lists `input_json` for question instructions.
-These additions are source changes, not features of published 0.5.0 artifacts.
+These additions are included starting with 0.6.0, not in 0.5.0 artifacts.
 See the [OpenAI guide](openai-decisions.md) for API and compatibility details.
 
 ### Offline verification
@@ -42,6 +42,12 @@ regression tests; invalid counts fail before transport. Review also corrected
 a stale generic text-only statement and a non-compiling documentation factory.
 The third review found no additional actionable defects; independent Java
 probes verified native/generic bounds and rejection before transport.
+
+Release preparation for 0.6.0 reran `./mvnw clean verify -Prelease`:
+486 tests passed. `./scripts/package-release.sh 0.6.0` produced 37 files;
+all 36 checksum entries matched and the GA API/helper classes were present.
+`./mvnw verify -Prelease,central -pl '!examples' -Dgpg.skip=true` also
+passed Central packaging checks without credentials, signing or upload.
 
 ### Live verification limit
 

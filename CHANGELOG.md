@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-10-23
 
 - OpenAI Decisions GA input supports JSON, developer/system/assistant history,
   function/custom-tool calls and outputs, and hosted image URLs. The SDK does
