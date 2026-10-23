@@ -9,3 +9,9 @@ and [Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
   including refusals and deliberately malformed payloads.
 
 These are offline examples, not recorded live inference or accuracy evidence.
+
+GA request fixtures in `DecisionInputGaTest` and `DecisionGaTest` were checked
+on 2026-10-23 against the same official guide and HTTP reference. They cover
+JSON, role/tool history, hosted images, multipart questions and cache controls.
+The loopback server returns a synthetic response; it proves wire delivery and
+that the SDK does not fetch images locally, not successful OpenAI inference.

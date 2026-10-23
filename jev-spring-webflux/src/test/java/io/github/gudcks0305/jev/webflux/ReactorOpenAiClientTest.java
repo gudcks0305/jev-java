@@ -6,6 +6,7 @@ import io.github.gudcks0305.jev.openai.DecisionAnswer;
 import io.github.gudcks0305.jev.openai.DecisionInput;
 import io.github.gudcks0305.jev.openai.DecisionQuestion;
 import io.github.gudcks0305.jev.openai.DecisionRequest;
+import io.github.gudcks0305.jev.openai.DecisionCacheOptions;
 import io.github.gudcks0305.jev.openai.OpenAiJevClient;
 import io.github.gudcks0305.jev.spi.JevTransport;
 import java.net.URI;
@@ -87,15 +88,37 @@ class ReactorOpenAiClientTest {
         }
     }
 
+    @Test void gaInputAndCacheOptionsRemainLazyAndCancellationAware() {
+        var request = DecisionRequest.builder().input(DecisionInput.json(Map.of("order", 42)))
+                .questions(DecisionQuestion.Predicate.multipart("match", List.of(
+                        new DecisionInput.TextPart("Does the photo match the order?"),
+                        new DecisionInput.ImagePart("https://example.com/photo.png"))))
+                .promptCacheKey("partition").promptCacheOptions(DecisionCacheOptions.explicit()).build();
+        var transport = new RecordingTransport();
+        try (var client = OpenAiJevClient.builder().apiKey("fixture-key").transport(transport).build()) {
+            var mono = new ReactorOpenAiClient(client).decide(request);
+            assertEquals(0, transport.calls.get());
+            var subscription = mono.subscribe();
+            assertEquals("input_json", transport.body.at("/input/0/content/0/type").textValue());
+            assertEquals("input_image", transport.body.at("/questions/0/instructions/1/type").textValue());
+            assertEquals("explicit", transport.body.at("/prompt_cache_options/mode").textValue());
+            subscription.dispose();
+            assertTrue(transport.latest.isCancelled());
+        }
+        assertEquals(0, transport.closeCalls.get());
+    }
+
     private static final class RecordingTransport implements JevTransport {
         private final AtomicInteger calls = new AtomicInteger();
         private final AtomicInteger closeCalls = new AtomicInteger();
         private CompletableFuture<JsonNode> latest;
         private JsonNode response;
+        private JsonNode body;
 
         @Override
         public CompletableFuture<JsonNode> post(URI uri, Map<String, String> headers, JsonNode body) {
             calls.incrementAndGet();
+            this.body = body;
             latest = response == null ? new CompletableFuture<>() : CompletableFuture.completedFuture(response);
             return latest;
         }

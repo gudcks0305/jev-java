@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- OpenAI Decisions GA input supports JSON, developer/system/assistant history,
+  function/custom-tool calls and outputs, and hosted image URLs. The SDK does
+  not execute tools or fetch remote images.
+- Native questions accept text/image/JSON instruction parts. Requests expose
+  prompt-cache keys, implicit/explicit modes, 30-minute TTL and input breakpoints.
+- Generic OpenAI evaluation accepts JSON state and structured instructions,
+  including `@JevLabels`. Provider-specific question, image and JSON limits
+  are validated before transport.
+- Existing constructor/accessor signatures remain available. Record shapes and
+  sealed input/part variants changed; exhaustive switches and reflection may
+  need updates. Invalid Choice/Score counts are now rejected at request creation.
+
+See the [OpenAI guide](docs/openai-decisions.md) and
+[validation evidence](docs/validation.md). These changes are not in 0.5.0.
+
 ## 0.5.0 — 2026-10-17
 
 - OpenRouter and Cloudflare clients now accept `JevInput` images and

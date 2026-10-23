@@ -10,10 +10,10 @@ import java.util.concurrent.ExecutionException;
 import io.github.gudcks0305.jev.JevException;
 
 /**
- * OpenAI's beta Decisions API. Reuse a client across requests.
- * The inherited evaluate methods support text-based Jev questions and fail a whole
- * evaluation on refusal. The native decide methods support images, typed boolean
- * choices, and per-question refusal results.
+ * OpenAI's Decisions API. Reuse a client across requests.
+ * The inherited evaluate methods support text/JSON Jev inputs and fail a whole
+ * evaluation on refusal. The native decide methods additionally support images,
+ * conversation history, cache controls, and per-question refusal results.
  */
 public final class OpenAiJevClient extends AbstractJevClient {
     private OpenAiJevClient(Builder builder) { super(builder.configuration(), WireFormat.OPENAI); }

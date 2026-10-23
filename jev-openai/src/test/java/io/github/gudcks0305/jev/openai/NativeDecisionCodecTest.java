@@ -109,11 +109,11 @@ class NativeDecisionCodecTest {
     }
 
     @Test
-    void acceptsSingleScoreLevelAndRepeatedLabelsWithoutRecomputingScore() throws Exception {
-        var request = new DecisionRequest("", List.of(new DecisionQuestion.Score("", List.of(new DecisionQuestion.Level("")))));
+    void acceptsRepeatedLabelsWithoutRecomputingScore() throws Exception {
+        var request = new DecisionRequest("", List.of(new DecisionQuestion.Score("", List.of(new DecisionQuestion.Level(""), new DecisionQuestion.Level("")))));
         var result = NativeDecisionCodec.response(response("""
                 [{"name":null,"type":"score","score":0,"confidence":0,
-                  "probabilities":[{"value":0,"label":"","probability":0.2}]}]
+                  "probabilities":[{"value":0,"label":"","probability":0.2},{"value":1,"label":"","probability":0.8}]}]
                 """), request);
         assertEquals(0, ((DecisionAnswer.Score) result.answer(0)).score());
         var repeats = new DecisionRequest("", List.of(new DecisionQuestion.Score("", List.of(

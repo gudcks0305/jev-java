@@ -18,6 +18,9 @@ Version 0.3.0 added OpenAI Decisions: text/image inputs, typed string/boolean
 choices, scoring, per-question refusals and request-level safety identifiers.
 The existing Jev question and record interfaces remain available; see the
 [OpenAI guide](docs/openai-decisions.md) for both APIs and their boundaries.
+OpenAI's Decisions API is GA; its contract was checked on 2026-10-23. Java
+support for GA additions is in this unreleased source checkout; published
+`0.5.0` artifacts do not include those additions yet.
 
 ## Installation
 
@@ -423,7 +426,8 @@ public final class JevClients implements AutoCloseable {
 
 The OpenAI compatibility adapter adds `REFUSAL`: one refused question fails the
 whole evaluation without returning partial answers or substituting a value.
-Its text-only limits also apply to record schemas; `@JevLabels` is unsupported.
+The unreleased GA update also accepts JSON state and structured instructions,
+including `@JevLabels`; published 0.5.0 retains the earlier text-only limits.
 
 Vercel decision-model v4 also fails the whole evaluation with `REFUSAL` when
 any question is refused. Its images belong in explicit state parts; Box is unsupported.
