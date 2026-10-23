@@ -14,10 +14,10 @@ class DecisionRequestTest {
     private static final String IMAGE = "data:image/png;base64,AQ==";
 
     @Test
-    void emptyStringsAndRepeatedNamesRemainValidAndOnlyEmptyQuestionCollectionsFail() {
+    void emptyStringsAndRepeatedNamesRemainValidWithinQuestionBounds() {
         var predicate = new DecisionQuestion.Predicate("", "");
-        var choice = new DecisionQuestion.Choice("", "", List.of(new DecisionQuestion.Option("", "")));
-        var score = new DecisionQuestion.Score("", "", List.of(new DecisionQuestion.Level("", "")));
+        var choice = new DecisionQuestion.Choice("", "", List.of(new DecisionQuestion.Option("", ""), new DecisionQuestion.Option("other")));
+        var score = new DecisionQuestion.Score("", "", List.of(new DecisionQuestion.Level("", ""), new DecisionQuestion.Level("", "")));
         var request = new DecisionRequest(DecisionInput.text(""), List.of(predicate, choice, score), "", "");
         assertEquals("", request.model());
         assertEquals("", request.safetyIdentifier());
@@ -67,7 +67,7 @@ class DecisionRequestTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "https://example.com/image.png", "file:///image.png", "file-image", "data:audio/wav;base64,AQ==",
+            "file:///image.png", "file-image", "data:audio/wav;base64,AQ==",
             "data:text/plain;base64,AQ==", "data:image/png,AQ==", "data:image/;base64,AQ==",
             "data:image/png;base64,", "data:image/png;base64,A", "data:image/png;base64,A===",
             "data:image/png;base64,=AAA", "data:image/png;base64,AQ=", "data:image/png;base64,AQ$=",
@@ -92,9 +92,9 @@ class DecisionRequestTest {
         var message = new DecisionInput.UserMessage(parts);
         var messages = new ArrayList<>(List.of(message));
         var input = DecisionInput.messages(messages);
-        var options = new ArrayList<>(List.of(new DecisionQuestion.Option(true)));
+        var options = new ArrayList<>(List.of(new DecisionQuestion.Option(true), new DecisionQuestion.Option(false)));
         var choice = new DecisionQuestion.Choice("", options);
-        var levels = new ArrayList<>(List.of(new DecisionQuestion.Level("secret")));
+        var levels = new ArrayList<>(List.of(new DecisionQuestion.Level("secret"), new DecisionQuestion.Level("secret")));
         var score = new DecisionQuestion.Score("", levels);
         var questions = new ArrayList<DecisionQuestion>(List.of(choice, score));
         var builder = DecisionRequest.builder().input(input).questions(questions);
@@ -109,8 +109,8 @@ class DecisionRequestTest {
         assertEquals(2, request.questions().size());
         assertEquals(1, input.messages().size());
         assertEquals(1, ((DecisionInput.ContentParts) message.content()).parts().size());
-        assertEquals(1, choice.choices().size());
-        assertEquals(1, score.levels().size());
+        assertEquals(2, choice.choices().size());
+        assertEquals(2, score.levels().size());
         assertThrows(UnsupportedOperationException.class, () -> request.questions().clear());
         assertThrows(UnsupportedOperationException.class, () -> input.messages().clear());
         assertThrows(UnsupportedOperationException.class, () -> ((DecisionInput.ContentParts) message.content()).parts().clear());
@@ -126,8 +126,8 @@ class DecisionRequestTest {
         var message = new DecisionInput.UserMessage(List.of(text, image));
         var input = DecisionInput.messages(message);
         var predicate = new DecisionQuestion.Predicate(secret, secret);
-        var choice = new DecisionQuestion.Choice(secret, secret, List.of(new DecisionQuestion.Option(secret, secret)));
-        var score = new DecisionQuestion.Score(secret, secret, List.of(new DecisionQuestion.Level(secret, secret)));
+        var choice = new DecisionQuestion.Choice(secret, secret, List.of(new DecisionQuestion.Option(secret, secret), new DecisionQuestion.Option(false)));
+        var score = new DecisionQuestion.Score(secret, secret, List.of(new DecisionQuestion.Level(secret, secret), new DecisionQuestion.Level(secret, secret)));
         var request = new DecisionRequest(input, List.of(predicate, choice, score), secret, secret);
         for (Object object : List.of(DecisionInput.text(secret), text, image, message, input, predicate,
                 choice, choice.choices().get(0), score, score.levels().get(0), request, DecisionValue.text(secret))) {

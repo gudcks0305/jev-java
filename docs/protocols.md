@@ -7,24 +7,35 @@ Box, models, and API checked on 2026-10-16; OpenRouter, Vercel decision-model v4
 and Cloudflare Jev 1.14 image contracts checked on 2026-10-17.
 This SDK is unofficial.
 
-## OpenAI Decisions (since 0.3.0, checked 2026-10-07)
+## OpenAI Decisions (adapter since 0.3.0; GA contract checked 2026-10-23)
 
-`jev-openai` implements OpenAI's beta `POST https://api.openai.com/v1/decisions`
+`jev-openai` implements OpenAI's `POST https://api.openai.com/v1/decisions`
 with Bearer `OPENAI_API_KEY` and default model `gpt-6-luna`, independent of Jev.
-The native `decide` API supports string or user-message input with text/inline
-images, string/boolean choices, score labels/descriptions, optional question names,
-request-level safety identifiers, and ordered results with individual refusals.
-Usage includes all documented token counters; unknown metadata stays in raw JSON.
+OpenAI's API is generally available; its contract was checked on 2026-10-23.
+The current contract supports text, images, JSON and conversation/tool history,
+plus cache controls, up to 400 questions and 128 images per request. See the
+[GA guide](https://developers.openai.com/api/docs/guides/decisions) for the full
+shape. Java GA support is included starting with 0.6.0;
+`0.5.0` artifacts do not include these additions.
+
+The native `decide` API returns typed predicate, choice and score answers,
+ordered by question, with individual refusals. Usage and unknown response
+metadata remain available through the result API.
 
 The inherited Jev `evaluate` API maps basic Noul to predicate, string/enum Choice
-and string-level Score to their existing Java types. It accepts text only and
-fails the whole evaluation with `REFUSAL` on a declined question. Existing record
-mapping remains available except structured `@JevLabels` questions.
+and string-level Score to their existing Java types. It accepts text and JSON
+state/instructions and fails the whole evaluation with `REFUSAL` on a declined
+question. Record mapping now includes structured `@JevLabels` instructions.
 
 Changing a TypeSafe/OpenRouter endpoint cannot change its wire format. See the
 [OpenAI guide](openai-decisions.md) for native/compatibility API examples, Spring
 setup, and official contracts; [validation](validation.md) separates offline
 fixtures from actual provider calls.
+
+The generic OpenAI `evaluate` adapter can send JSON state and structured
+instructions as `input_json`; it still accepts only its existing Noul, Choice,
+and Score subset. It does not turn `JevInput` image assets into OpenAI image
+parts, and Box remains unsupported by this provider.
 
 ## TypeSafe direct
 

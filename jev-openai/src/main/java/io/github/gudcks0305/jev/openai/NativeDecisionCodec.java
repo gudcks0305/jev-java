@@ -24,32 +24,20 @@ final class NativeDecisionCodec {
         body.put("model", Objects.requireNonNull(request.model() == null ? defaultModel : request.model(),
                 "Decision model must not be null"));
         if (request.safetyIdentifier() != null) body.put("safety_identifier", request.safetyIdentifier());
-        if (request.input() instanceof DecisionInput.Text text) {
-            body.put("input", text.text());
-        } else if (request.input() instanceof DecisionInput.Messages messages) {
-            ArrayNode wireMessages = body.putArray("input");
-            for (var message : messages.messages()) {
-                ObjectNode wire = wireMessages.addObject().put("role", "user");
-                if (message.content() instanceof DecisionInput.MessageText text) {
-                    wire.put("content", text.text());
-                } else if (message.content() instanceof DecisionInput.ContentParts content) {
-                    ArrayNode parts = wire.putArray("content");
-                    for (var part : content.parts()) {
-                        if (part instanceof DecisionInput.TextPart text) {
-                            parts.addObject().put("type", "input_text").put("text", text.text());
-                        } else if (part instanceof DecisionInput.ImagePart image) {
-                            ObjectNode imagePart = parts.addObject().put("type", "input_image")
-                                    .put("image_url", image.imageUrl());
-                            if (image.detail() != null) imagePart.put("detail", image.detail().name().toLowerCase(Locale.ROOT));
-                        }
-                    }
-                }
+        body.set("input", DecisionInputCodec.encode(request.input()));
+        if (request.promptCacheKey() != null) body.put("prompt_cache_key", request.promptCacheKey());
+        if (request.promptCacheOptions() != null) {
+            var options = body.putObject("prompt_cache_options");
+            if (request.promptCacheOptions().mode() != null) {
+                options.put("mode", request.promptCacheOptions().mode().name().toLowerCase(Locale.ROOT));
             }
+            if (request.promptCacheOptions().ttl() != null) options.put("ttl", "30m");
         }
         ArrayNode questions = body.putArray("questions");
         for (DecisionQuestion question : request.questions()) {
-            ObjectNode wire = questions.addObject().put("type", wireType(question))
-                    .put("instructions", question.instructions());
+            ObjectNode wire = questions.addObject().put("type", wireType(question));
+            if (question.instructionParts().isEmpty()) wire.put("instructions", question.instructions());
+            else wire.set("instructions", DecisionInputCodec.parts(question.instructionParts()));
             if (question.name() != null) wire.put("name", question.name());
             if (question instanceof DecisionQuestion.Choice choice) {
                 ArrayNode choices = wire.putArray("choices");

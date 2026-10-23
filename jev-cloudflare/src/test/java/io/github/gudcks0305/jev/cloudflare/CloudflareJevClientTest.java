@@ -57,7 +57,7 @@ class CloudflareJevClientTest {
             assertEquals("/custom/run", path.get());
             assertEquals("tenant=acme", query.get());
             assertEquals("Bearer test-token", authorization.get());
-            assertEquals("jev-java/0.5.0", userAgent.get());
+            assertEquals("jev-java/0.6.0", userAgent.get());
             assertEquals("typesafe/jev", requestBody.get().path("model").asText());
             assertEquals("Three days late", requestBody.get().at("/input/state/message").asText());
             assertEquals("noul", requestBody.get().at("/input/questions/urgent/type").asText());

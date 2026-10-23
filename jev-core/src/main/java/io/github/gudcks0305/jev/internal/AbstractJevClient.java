@@ -39,7 +39,7 @@ public abstract class AbstractJevClient implements JevClient {
         values.put("Authorization", "Bearer " + config.apiKey);
         values.put("Content-Type", "application/json");
         values.put("Accept", "application/json");
-        values.put("User-Agent", "jev-java/0.5.0");
+        values.put("User-Agent", "jev-java/0.6.0");
         if (format == WireFormat.VERCEL || format == WireFormat.VERCEL_DECISION) {
             values.put("ai-gateway-protocol-version", "0.0.1");
             values.put("ai-gateway-auth-method", "api-key");

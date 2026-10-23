@@ -94,12 +94,20 @@ class OpenAiJevClientTest {
     }
 
     @Test
-    void rejectsStructuredStateAndMultiLabelRecordBeforeTransport() {
-        Stub stub = new Stub(new CompletableFuture<>());
+    void mapsStructuredStateAndMultiLabelRecordThroughGaJsonInstructions() throws Exception {
+        var response = JSON.readTree("""
+                {"model":"gpt-6-luna","answers":[
+                  {"name":"labels.DAMAGE","type":"predicate","probability":0.9},
+                  {"name":"labels.REFUND","type":"predicate","probability":0.2}],
+                  "usage":{"input_tokens":30,"output_tokens":0}}
+                """);
+        Stub stub = new Stub(CompletableFuture.completedFuture(response));
         try (var client = OpenAiJevClient.builder().apiKey("test-key").transport(stub).build()) {
-            assertThrows(IllegalArgumentException.class, () -> client.evaluate(Map.of("text", "broken"), damaged));
-            assertThrows(IllegalArgumentException.class, () -> client.evaluate("text", Labels.class));
-            assertEquals(0, stub.calls);
+            assertEquals(List.of(Label.DAMAGE), client.evaluate(Map.of("text", "broken"), Labels.class).value().labels());
+            assertEquals("input_json", stub.body.at("/input/0/content/0/type").textValue());
+            assertEquals("broken", stub.body.at("/input/0/content/0/data/text").textValue());
+            assertEquals("DAMAGE", stub.body.at("/questions/0/instructions/0/data/label").textValue());
+            assertEquals(1, stub.calls);
         }
     }
 

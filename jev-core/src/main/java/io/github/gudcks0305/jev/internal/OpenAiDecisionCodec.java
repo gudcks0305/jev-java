@@ -13,20 +13,34 @@ final class OpenAiDecisionCodec {
     private OpenAiDecisionCodec() {}
 
     static ObjectNode request(Object state, Map<String, Question<?>> questions, String model) {
-        if (!(state instanceof String || state instanceof JsonNode node && node.isTextual())) {
-            throw new IllegalArgumentException("OpenAI input must be a string or textual JsonNode");
+        if (questions.isEmpty() || questions.size() > 400) {
+            throw new IllegalArgumentException("OpenAI Decisions requires 1 to 400 questions");
         }
         ObjectNode body = JsonSupport.object();
         body.put("model", model);
-        body.set("input", JsonSupport.content(state, "OpenAI input"));
+        if (state instanceof String || state instanceof JsonNode node && node.isTextual()) {
+            body.set("input", JsonSupport.content(state, "OpenAI input"));
+        } else {
+            body.putArray("input").addObject().put("role", "user")
+                    .putArray("content").addObject().put("type", "input_json")
+                    .set("data", OpenAiJsonInput.snapshot(state));
+        }
         var encoded = body.putArray("questions");
         questions.forEach((id, question) -> {
             JsonNode instructions = question.instructions();
-            requireText(instructions, "OpenAI instructions");
             ObjectNode entry = encoded.addObject();
             entry.put("name", id);
-            entry.set("instructions", instructions);
+            if (instructions.isTextual()) {
+                requireText(instructions, "OpenAI instructions");
+                entry.set("instructions", instructions);
+            } else {
+                entry.putArray("instructions").addObject().put("type", "input_json")
+                        .set("data", OpenAiJsonInput.snapshot(instructions));
+            }
             if (question instanceof ChoiceQuestion<?> choice) {
+                if (choice.options().size() < 2 || choice.options().size() > 255) {
+                    throw new IllegalArgumentException("OpenAI Choice requires 2 to 255 choices");
+                }
                 entry.put("type", "choice");
                 var choices = entry.putArray("choices");
                 JsonNode criteria = choice.criteria();
@@ -41,6 +55,9 @@ final class OpenAiDecisionCodec {
                     }
                 });
             } else if (question instanceof ScoreQuestion score) {
+                if (score.levelCount() < 2 || score.levelCount() > 10) {
+                    throw new IllegalArgumentException("OpenAI Score requires 2 to 10 levels");
+                }
                 entry.put("type", "score");
                 var levels = entry.putArray("levels");
                 for (JsonNode level : score.criteria()) {

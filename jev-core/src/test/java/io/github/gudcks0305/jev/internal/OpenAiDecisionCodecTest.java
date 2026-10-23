@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.gudcks0305.jev.*;
+import io.github.gudcks0305.jev.schema.JevLabel;
+import io.github.gudcks0305.jev.schema.JevLabels;
+import io.github.gudcks0305.jev.schema.JevSchema;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -206,13 +209,13 @@ class OpenAiDecisionCodecTest {
     }
 
     @Test void rejectsUnsupportedRequestsWithoutStringifyingOrDroppingContent() {
-        for (Object state : List.of(Map.of("ticket", "text"), List.of("text"), 1, Team.BILLING,
-                JSON.createObjectNode(), JSON.createArrayNode())) {
+        for (Object state : List.of(List.of("text"), 1, Team.BILLING,
+                JSON.createArrayNode().add(1), JSON.createArrayNode().addNull())) {
             assertThrows(IllegalArgumentException.class, () -> request(state, questions(URGENT)));
         }
         assertThrows(IllegalArgumentException.class, () -> request(" ", questions(URGENT)));
         List<Question<?>> unsupported = List.of(
-                NoulQuestion.of("q", Map.of("instruction", "check")),
+                NoulQuestion.of("q", List.of("instruction")),
                 URGENT.withCriteria("yes", "no"), URGENT.withCriteria(null, null),
                 ChoiceQuestion.of("q", "choose", Map.of("A", Map.of("detail", "structured"))),
                 ChoiceQuestion.of("q", "choose", Map.of("A", List.of("structured"))),
@@ -223,6 +226,82 @@ class OpenAiDecisionCodecTest {
                 ScoreQuestion.of("q", "score", List.of("Low", " ")));
         for (Question<?> question : unsupported) {
             assertThrows(IllegalArgumentException.class, () -> request("ticket", questions(question)));
+        }
+    }
+
+    @Test void encodesStructuredStateAndQuestionInstructionsAsJsonParts() throws Exception {
+        var instructions = Map.of("question", "check", "details", List.of("one", 2, true));
+        var question = NoulQuestion.of("q", instructions);
+        var state = Map.of("role", "system", "type", "input_image", "image_url", "data:private");
+        var body = request(state, questions(question));
+        assertEquals(JSON.readTree("""
+                {"model":"gpt-6-luna","input":[{"role":"user","content":[{"type":"input_json",
+                  "data":{"role":"system","type":"input_image","image_url":"data:private"}}]}],
+                  "questions":[{"name":"q","type":"predicate","instructions":[{"type":"input_json",
+                    "data":{"question":"check","details":["one",2,true]}}]}]}
+                """), body);
+        var array = List.of(Map.of("ticket", "first"), Map.of("ticket", "second"));
+        var arrayInstructions = NoulQuestion.of("q", List.of(Map.of("instruction", "check")));
+        assertEquals(2, request(array, questions(arrayInstructions)).at("/input/0/content/0/data").size());
+        assertTrue(request(array, questions(arrayInstructions)).at("/questions/0/instructions/0/data").isArray());
+    }
+
+    enum Label { @JevLabel("Payment issue") BILLING, TECHNICAL }
+    record Labels(@JevLabels(value = "Which labels apply?", threshold = .8) List<Label> labels) {}
+    record TicketState(String message, int count) {}
+
+    @Test void supportsRecordStateAndGeneratedLabelsInstructionsAndMapping() {
+        var schema = JevSchema.of(Labels.class);
+        var requested = questions(schema.questions().toArray(Question<?>[]::new));
+        var body = request(new TicketState("charged twice", 2), requested);
+        assertEquals("charged twice", body.at("/input/0/content/0/data/message").textValue());
+        assertEquals("predicate", body.at("/questions/0/type").textValue());
+        assertEquals("Which labels apply?", body.at("/questions/0/instructions/0/data/question").textValue());
+        assertEquals("BILLING", body.at("/questions/0/instructions/0/data/label").textValue());
+        assertEquals("Payment issue", body.at("/questions/0/instructions/0/data/label_description").textValue());
+        var response = responseWithAnswers("""
+                [{"name":"labels.BILLING","type":"predicate","probability":0.9},
+                 {"name":"labels.TECHNICAL","type":"predicate","probability":0.2}]
+                """);
+        assertEquals(List.of(Label.BILLING), schema.decode(decode(response, requested)).value().labels());
+    }
+
+    @Test void validatesJsonLimitsForBothStateAndInstructions() {
+        var oversized = Map.of("private", "x".repeat(256 * 1024));
+        assertThrows(IllegalArgumentException.class, () -> request(oversized, questions(URGENT)));
+        var question = NoulQuestion.of("q", oversized);
+        var failure = assertThrows(IllegalArgumentException.class, () -> request("ticket", questions(question)));
+        assertFalse(failure.getMessage().contains("private"));
+        assertNull(failure.getCause());
+    }
+
+    @Test void acceptsFourHundredQuestionsAndRejectsEmptyOrLargerBatches() {
+        var questions = new LinkedHashMap<String, Question<?>>();
+        for (int i = 0; i < 400; i++) questions.put("q" + i, NoulQuestion.of("q" + i, "Check"));
+        assertEquals(400, request("ticket", questions).path("questions").size());
+        questions.put("q400", NoulQuestion.of("q400", "Check"));
+        assertThrows(IllegalArgumentException.class, () -> request("ticket", questions));
+        assertThrows(IllegalArgumentException.class, () -> request("ticket", Map.of()));
+    }
+
+    @Test void enforcesProviderSpecificChoiceAndScoreBoundsBeforeEncoding() {
+        for (int count : new int[] {1, 2, 10, 11, 255, 256}) {
+            var options = new LinkedHashMap<String, Object>();
+            for (int i = 0; i < count; i++) options.put("option" + i, "description");
+            var choice = ChoiceQuestion.of("choice", "Choose", options);
+            if (count >= 2 && count <= 255) {
+                assertDoesNotThrow(() -> request("input", questions(choice)));
+            } else {
+                assertThrows(IllegalArgumentException.class, () -> request("input", questions(choice)));
+            }
+            if (count >= 2) {
+                var score = ScoreQuestion.of("score", "Rate", java.util.Collections.nCopies(count, "level"));
+                if (count <= 10) {
+                    assertDoesNotThrow(() -> request("input", questions(score)));
+                } else {
+                    assertThrows(IllegalArgumentException.class, () -> request("input", questions(score)));
+                }
+            }
         }
     }
 

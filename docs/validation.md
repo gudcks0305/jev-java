@@ -2,6 +2,62 @@
 
 Recorded on 2026-09-20. Test judgments are examples, not an accuracy benchmark.
 
+## OpenAI Decisions GA 0.6.0 (checked 2026-10-23)
+
+The [official guide](https://developers.openai.com/api/docs/guides/decisions)
+and [create reference](https://developers.openai.com/api/reference/resources/decisions/methods/create)
+were checked for shared JSON input, role/tool history, hosted images,
+multipart question instructions and explicit prompt-cache controls.
+The detailed reference also lists `input_json` for question instructions.
+These additions are included starting with 0.6.0, not in 0.5.0 artifacts.
+See the [OpenAI guide](openai-decisions.md) for API and compatibility details.
+
+### Offline verification
+
+`./mvnw clean verify -Prelease` passed **486 tests, 0 failures/errors/skips**
+on OpenJDK 25.0.2, Spring Boot 3.5.16 and Java source/target release 17,
+including source/Javadoc packaging and runnable examples.
+`./mvnw verify -Dspring-boot.version=4.1.1` passed the same 486 tests.
+The changes add 65 test executions over the 421-test 0.5.0 baseline.
+Java 17/21 runtimes and remote CI were not exercised for this local change.
+
+Coverage includes JSON object/array shapes, exact numeric values, defensive
+snapshots, binary-to-base64 normalization, 32-level/10,000-value/256-KiB JSON
+limits, role and tool context validation, multipart questions, cache field
+omission and explicit markers, 400 questions, 128 aggregate images,
+Choice 2–255 and Score 2–10 bounds, generic `@JevLabels` mapping, and native
+and Reactor cancellation. A loopback HTTP test checks the actual request body
+and verifies no local hosted-image fetch. Responses are synthetic fixtures;
+no offline result establishes provider inference accuracy or cache reuse.
+
+All three Java blocks in the OpenAI guide compiled with `javac --release 17`.
+A consumer probe compiled against published 0.5.0 core/OpenAI JARs ran against
+these new classes, exercising old constructors/accessors and `UserMessage`
+iteration. This verifies those exercised binary signatures, not exhaustive
+source compatibility: record components and sealed input/part variants changed.
+
+Independent critic rounds identified nested Jackson binary values being
+rejected and missing provider Choice/Score bounds. Both were corrected with
+regression tests; invalid counts fail before transport. Review also corrected
+a stale generic text-only statement and a non-compiling documentation factory.
+The third review found no additional actionable defects; independent Java
+probes verified native/generic bounds and rejection before transport.
+
+Release preparation for 0.6.0 reran `./mvnw clean verify -Prelease`:
+486 tests passed. `./scripts/package-release.sh 0.6.0` produced 37 files;
+all 36 checksum entries matched and the GA API/helper classes were present.
+`./mvnw verify -Prelease,central -pl '!examples' -Dgpg.skip=true` also
+passed Central packaging checks without credentials, signing or upload.
+
+### Live verification limit
+
+One Java SDK request with synthetic JSON/history, a generated 280 × 280 red
+rectangle PNG in question instructions, explicit caching and `maxRetries(0)`
+returned **HTTP 429 / `JevException.Kind.RATE_LIMIT`**. The provider error code
+was not inspected. Successful GA inference and cache hits remain unverified.
+The historical 2026-10-07 `billing_not_active` response does not establish the
+cause of this request. No real customer data or repository source was sent.
+
 ## Provider images and Vercel Decision v4 0.5.0 (2026-10-17)
 
 OpenRouter and Cloudflare now implement the image/Box contracts linked in

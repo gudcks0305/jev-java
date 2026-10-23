@@ -5,28 +5,36 @@ import java.util.Objects;
 
 /** Immutable native request. Null model uses the client default; null safety identifier is omitted. */
 public record DecisionRequest(DecisionInput input, List<DecisionQuestion> questions,
-                              String model, String safetyIdentifier) {
+                              String model, String safetyIdentifier,
+                              String promptCacheKey, DecisionCacheOptions promptCacheOptions) {
     public DecisionRequest {
         Objects.requireNonNull(input, "Decision input must not be null");
         questions = List.copyOf(questions);
-        if (questions.isEmpty()) throw new IllegalArgumentException("At least one question is required");
+        if (questions.isEmpty() || questions.size() > 400) throw new IllegalArgumentException("Between 1 and 400 questions are required");
         if (safetyIdentifier != null && safetyIdentifier.codePointCount(0, safetyIdentifier.length()) > 128) {
             throw new IllegalArgumentException("Safety identifier must contain at most 128 Unicode code points");
         }
-        int images = 0;
-        if (input instanceof DecisionInput.Messages messages) {
-            for (var message : messages.messages()) {
-                if (message.content() instanceof DecisionInput.ContentParts content) {
-                    for (var part : content.parts()) {
-                        if (part instanceof DecisionInput.ImagePart && ++images > 128) {
-                            throw new IllegalArgumentException("At most 128 images are allowed per request");
-                        }
-                    }
-                }
-            }
+        if (promptCacheKey != null && promptCacheKey.codePointCount(0, promptCacheKey.length()) > 64) {
+            throw new IllegalArgumentException("Prompt cache key must contain at most 64 Unicode code points");
         }
+        long images = DecisionInputCodec.imageCount(input);
+        for (var question : questions) {
+            if (question instanceof DecisionQuestion.Choice choice
+                    && (choice.choices().size() < 2 || choice.choices().size() > 255)) {
+                throw new IllegalArgumentException("OpenAI Choice requires 2 to 255 choices");
+            }
+            if (question instanceof DecisionQuestion.Score score
+                    && (score.levels().size() < 2 || score.levels().size() > 10)) {
+                throw new IllegalArgumentException("OpenAI Score requires 2 to 10 levels");
+            }
+            images += question.instructionParts().stream().filter(DecisionInput.ImagePart.class::isInstance).count();
+        }
+        if (images > 128) throw new IllegalArgumentException("At most 128 images are allowed per request");
     }
 
+    public DecisionRequest(DecisionInput input, List<DecisionQuestion> questions, String model, String safetyIdentifier) {
+        this(input, questions, model, safetyIdentifier, null, null);
+    }
     public DecisionRequest(DecisionInput input, List<DecisionQuestion> questions) {
         this(input, questions, null, null);
     }
@@ -40,7 +48,7 @@ public record DecisionRequest(DecisionInput input, List<DecisionQuestion> questi
     public static Builder builder() { return new Builder(); }
 
     @Override public String toString() {
-        return "DecisionRequest[input=redacted, questions=" + questions.size() + ", model=redacted, safetyIdentifier=redacted]";
+        return "DecisionRequest[input=redacted, questions=" + questions.size() + ", model=redacted, safetyIdentifier=redacted, promptCacheKey=redacted]";
     }
 
     public static final class Builder {
@@ -48,6 +56,8 @@ public record DecisionRequest(DecisionInput input, List<DecisionQuestion> questi
         private List<DecisionQuestion> questions;
         private String model;
         private String safetyIdentifier;
+        private String promptCacheKey;
+        private DecisionCacheOptions promptCacheOptions;
 
         private Builder() {}
         public Builder input(DecisionInput input) { this.input = input; return this; }
@@ -56,7 +66,9 @@ public record DecisionRequest(DecisionInput input, List<DecisionQuestion> questi
         public Builder questions(DecisionQuestion... questions) { return questions(List.of(questions)); }
         public Builder model(String model) { this.model = model; return this; }
         public Builder safetyIdentifier(String safetyIdentifier) { this.safetyIdentifier = safetyIdentifier; return this; }
-        public DecisionRequest build() { return new DecisionRequest(input, questions, model, safetyIdentifier); }
+        public Builder promptCacheKey(String promptCacheKey) { this.promptCacheKey = promptCacheKey; return this; }
+        public Builder promptCacheOptions(DecisionCacheOptions options) { this.promptCacheOptions = options; return this; }
+        public DecisionRequest build() { return new DecisionRequest(input, questions, model, safetyIdentifier, promptCacheKey, promptCacheOptions); }
         @Override public String toString() { return "DecisionRequest.Builder[redacted]"; }
     }
 }
