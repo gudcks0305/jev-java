@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.github.gudcks0305.jev.JevException;
 import io.github.gudcks0305.jev.NoulQuestion;
+import io.github.gudcks0305.jev.ScoreQuestion;
 import io.github.gudcks0305.jev.schema.JevBoolean;
 import io.github.gudcks0305.jev.schema.JevLabels;
 import io.github.gudcks0305.jev.schema.JevProbability;
@@ -68,6 +69,39 @@ class OpenAiJevClientTest {
             assertEquals(0, result.usage().outputTokens().orElseThrow());
             assertEquals(0, result.rawResponse().at("/usage/input_tokens_details/cached_tokens").intValue());
             assertEquals(42, result.rawResponse().at("/usage/total_tokens").intValue());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void sendsBlankScoreLabelsAndPreservesTheirIndexedAnswers() throws Exception {
+        AtomicReference<JsonNode> body = new AtomicReference<>();
+        HttpServer server = server();
+        server.createContext("/v1/decisions", exchange -> {
+            body.set(JSON.readTree(exchange.getRequestBody()));
+            byte[] bytes = """
+                    {"model":"gpt-6-luna","answers":[
+                      {"name":"rating","type":"score","score":0.75,"confidence":0.8,
+                       "probabilities":[{"value":1,"label":" ","probability":0.75},
+                                        {"value":0,"label":"","probability":0.25}]}],
+                     "usage":{"input_tokens":10,"output_tokens":0}}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        var question = ScoreQuestion.of("rating", "Rate the evidence", List.of("", " "));
+        try (var client = OpenAiJevClient.builder().apiKey("test-key")
+                .endpoint(endpoint(server, "/v1/decisions")).maxRetries(0).build()) {
+            var answer = client.evaluateAsync("synthetic evidence", question).join().answer(question);
+            assertEquals("", body.get().at("/questions/0/levels/0/label").textValue());
+            assertEquals(" ", body.get().at("/questions/0/levels/1/label").textValue());
+            assertEquals(.75, answer.score());
+            assertEquals(Map.of(0, .25, 1, .75), answer.probabilities());
+            assertEquals("", answer.legend().get(0).textValue());
+            assertEquals(" ", answer.legend().get(1).textValue());
         } finally {
             server.stop(0);
         }

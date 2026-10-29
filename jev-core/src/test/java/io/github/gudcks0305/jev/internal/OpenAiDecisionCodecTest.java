@@ -179,6 +179,34 @@ class OpenAiDecisionCodecTest {
         assertProtocol(JSON.createArrayNode(), questions(URGENT));
     }
 
+    @Test void preservesBlankAndRepeatedScoreLabelsByIndex() {
+        var question = ScoreQuestion.of("q", "Rate the evidence", List.of("", " ", "", " High "));
+        var requested = questions(question);
+        var body = request("ticket", requested);
+        assertEquals(question.criteria().get(0), body.at("/questions/0/levels/0/label"));
+        assertEquals(question.criteria().get(1), body.at("/questions/0/levels/1/label"));
+        assertEquals(question.criteria().get(2), body.at("/questions/0/levels/2/label"));
+        assertEquals(question.criteria().get(3), body.at("/questions/0/levels/3/label"));
+        var response = responseWithAnswers("""
+                [{"name":"q","type":"score","score":1.5,"confidence":0.6,"probabilities":[
+                  {"value":2,"label":"","probability":0.4},
+                  {"value":0,"label":"","probability":0.1},
+                  {"value":3,"label":" High ","probability":0.2},
+                  {"value":1,"label":" ","probability":0.3}]}]
+                """);
+        var answer = decode(response, requested).answer(question);
+        assertEquals(1.5, answer.score());
+        assertEquals(Map.of(0, .1, 1, .3, 2, .4, 3, .2), answer.probabilities());
+        for (int i = 0; i < question.levelCount(); i++) {
+            assertEquals(question.criteria().get(i), answer.legend().get(i));
+        }
+        // Equal labels do not make duplicate indices or changed whitespace valid.
+        ((ObjectNode) response.at("/answers/0/probabilities/0")).put("value", 0);
+        assertProtocol(response, requested);
+        ((ObjectNode) response.at("/answers/0/probabilities/0")).put("value", 2).put("label", " ");
+        assertProtocol(response, requested);
+    }
+
     @Test void rejectsDuplicateScoreIndicesEvenWhenTheirLabelsMatch() {
         ObjectNode body = validResponse();
         ArrayNode distribution = (ArrayNode) body.at("/answers/2/probabilities");
@@ -222,8 +250,7 @@ class OpenAiDecisionCodecTest {
                 ChoiceQuestion.of("q", "choose", Map.of("A", true)),
                 ScoreQuestion.of("q", "score", List.of("Low", Map.of("label", "High"))),
                 ScoreQuestion.of("q", "score", List.of("Low", 1)),
-                ScoreQuestion.of("q", "score", java.util.Arrays.asList("Low", null)),
-                ScoreQuestion.of("q", "score", List.of("Low", " ")));
+                ScoreQuestion.of("q", "score", java.util.Arrays.asList("Low", null)));
         for (Question<?> question : unsupported) {
             assertThrows(IllegalArgumentException.class, () -> request("ticket", questions(question)));
         }

@@ -61,7 +61,9 @@ final class OpenAiDecisionCodec {
                 entry.put("type", "score");
                 var levels = entry.putArray("levels");
                 for (JsonNode level : score.criteria()) {
-                    requireText(level, "OpenAI score levels");
+                    if (!level.isTextual()) {
+                        throw new IllegalArgumentException("OpenAI score levels must be strings");
+                    }
                     levels.addObject().set("label", level);
                 }
             } else if (question instanceof NoulQuestion noul) {
