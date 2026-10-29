@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- OpenAI generic Score evaluation preserves empty, whitespace-only and repeated
+  string labels, matching the native Decisions contract. Levels remain identified
+  by their zero-based index; non-string labels are still rejected.
+
 ## 0.6.0 — 2026-10-23
 
 - OpenAI Decisions GA input supports JSON, developer/system/assistant history,
